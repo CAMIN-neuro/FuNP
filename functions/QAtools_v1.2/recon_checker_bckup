@@ -1,0 +1,384 @@
+#!/bin/csh -f
+# original by Vasanth Pappu
+# modified by David Koh on 8/10/06, 8/24/06
+# modified by Vasanth Pappu on 09/27/06
+# modified by Jenni Pacheco on 09/28/06, 9/29/06
+# modified by Stephanie Lee on 10/16/06
+
+if ($#argv == 0) goto usage_err;
+
+set CheckOutputFiles = 1;
+set CheckStatusLog = 1;
+set CheckAsegOutliers = 1;
+set TakeSnapshots = 1;
+set OverwriteSnapshots = 0;
+
+set DetailedSnapshots = 0;
+set GenerateNewOutputOrderFile = 0;
+set subjects = ();
+set tmpFile = ./recon_checker.tmp # temp file for the -ignore flag
+set outputHMTLfile = ();
+set scriptsDir = /autofs/space/tensor_017/users/jpacheco/QAtools/data_checker
+set asegMeansFile = AsegMeans.txt
+setenv RECON_CHECKER_SCRIPTS $QA_SCRIPTS/data_checker
+
+# may need to clean up from a previous run
+if ( -e $tmpFile ) then
+    rm $tmpFile
+endif
+
+goto parse_args;
+parse_args_return:
+
+goto check_params;
+check_params_return:
+
+# ---
+
+
+
+echo "SUBJECTS_DIR is $SUBJECTS_DIR "
+echo ""
+#sleep 2;
+echo "subjects are $subjects "
+echo ""
+#sleep 2;
+echo "CheckOutputFiles = $CheckOutputFiles"
+echo "CheckStatusLog = $CheckStatusLog"
+echo "CheckAsegOutliers = $CheckAsegOutliers"
+echo "TakeSnapshots = $TakeSnapshots"
+sleep 3;
+
+if( $GenerateNewOutputOrderFile ) then
+    pushd $SUBJECTS_DIR/$subjects[1] > /dev/null
+    
+    set mrifilelist = (`ls -1tr mri/*.mgz mri/*.lta mri/*.m3z`)
+    set transfilelist = (`ls -1tr mri/transforms/*.xfm mri/transforms/*.mgz mri/transforms/*.lta mri/transforms/*.m3z`)
+    set surffilelist = (`ls -1tr surf`)
+    set statsfilelist = (`ls -1tr stats`)
+    set scriptsfilelist = (`ls -1tr scripts`)
+    set labelfilelist = (`ls -1tr label`)
+
+    set filelist = ();
+
+    foreach mrifile ($mrifilelist)
+	set filelist = ( $filelist "$mrifile" )
+    end
+    foreach transfile ($transfilelist)
+	set filelist = ( $filelist "$transfile" )
+    end
+    foreach surffile ($surffilelist)
+	set filelist = ( $filelist "surf/$surffile" )
+    end
+    foreach statsfile ($statsfilelist)
+	set filelist = ( $filelist "stats/$statsfile" )
+    end
+    foreach scriptsfile ($scriptsfilelist)
+	set filelist = ( $filelist "scripts/$scriptsfile" )
+    end
+    foreach labelfile ($labelfilelist)
+	set filelist = ( $filelist "label/$labelfile" )
+    end
+    echo "" > unsorted_files
+    foreach file ( $filelist )
+      if ( ! -d $file ) then
+	set timestamp = `stat -c %y $file`
+	echo "$timestamp $file" >> unsorted_files
+      endif
+    end
+    sort unsorted_files | awk '{print $4}' > $RECON_CHECKER_SCRIPTS/${subjects[1]}_output_order_file
+    rm unsorted_files
+    set output_file_order_file = "$RECON_CHECKER_SCRIPTS/$subjects[1]_output_order_file"
+    popd > /dev/null
+endif
+
+foreach s ($subjects)
+     
+    # set up summary and detail logs
+    set slog = $SUBJECTS_DIR/$s/scripts/recon_checker.${s}.summary.log
+    set dlog = $SUBJECTS_DIR/$s/scripts/recon_checker.${s}.details.log 
+    echo "writing to:"
+    echo "	$slog"
+    echo "	$dlog"
+
+    echo "-------------------------------------------------------------" | tee -a $slog | tee -a $dlog
+    echo "Running recon_checker on:" | tee -a $slog | tee -a $dlog
+    date | tee -a $slog | tee -a $dlog
+
+    if ( ! -e $slog || ! -e $dlog ) then
+	echo "ERROR: Log file directory not found."
+	echo "Check that SUBJECTS_DIR is properly set"
+	exit 1
+    endif
+
+##check version of freesurfer used
+echo "Checking Last Version Used:" | tee -a $slog | tee -a $dlog
+if (-e $SUBJECTS_DIR/${s}/scripts/recon-all.log) then
+    egrep "/recon-all" $SUBJECTS_DIR/${s}/scripts/recon-all.log | tail -n1 | tee -a $slog | tee -a $dlog
+else
+    echo "$SUBJECTS_DIR/${s}/scripts/recon-all.log doesn't exist ..." | tee -a $slog | tee -a $dlog
+endif 
+
+echo "Checking ALL Versions Used:" | tee -a $dlog
+if (-e $SUBJECTS_DIR/${s}/scripts/recon-all.log) then
+    egrep "/recon-all" $SUBJECTS_DIR/${s}/scripts/recon-all.log | xargs -i csh -c 'echo "`dirname {}`/recon-all"' | uniq | xargs -i csh -c 'echo {},;' | tee -a $dlog
+else
+    echo "$SUBJECTS_DIR/${s}/scripts/recon-all.log doesn't exist ..."| tee -a $dlog
+endif 
+
+# check output files
+if ($CheckOutputFiles) then
+echo "---"
+echo "checking output files ..."
+set cmd = ($scriptsDir/recon_all_output_file_checker -subjid $s)
+set cmd_details = ($scriptsDir/recon_all_output_file_checker -subjid $s -details)
+if ($?output_file_order_file) then
+    set cmd = ($cmd -outputfileorderfile $output_file_order_file)
+    set cmd = ($cmd -outputfileorderfile $output_file_order_file)
+endif
+echo "Running command: $cmd"
+echo "---"
+sleep 3
+$cmd | tee -a $slog
+$cmd_details | tee -a $dlog
+endif # if ($CheckOutputFiles) then
+
+# check step order
+if ($CheckStatusLog) then
+echo "---"
+echo "checking step order ..."
+set cmd = ($scriptsDir/recon_all_status_log_checker -subjid $s)
+set cmd_details = ($scriptsDir/recon_all_status_log_checker -subjid $s -details)
+echo "Running command: $cmd"
+echo "---"
+sleep 3
+$cmd | tee -a $slog
+$cmd_details | tee -a $dlog
+endif # if ($CheckStatusLog) then 
+
+# check asegs for outliers
+if ($CheckAsegOutliers) then
+echo "---"
+echo "checking asegs for outliers ..."
+set cmd = ($scriptsDir/recon_all_aseg_outlier_checker -subjid $s -LookupMeansFromFile $asegMeansFile -dlog $dlog -slog $slog)
+#set cmd_details = ($scriptsDir/recon_all_aseg_outlier_checker -subjid $s -LookupMeansFromFile $asegMeansFile -details)
+echo "Running command: $cmd"
+echo "---"
+sleep 3
+$cmd 
+#$cmd_details | tee -a $dlog
+endif # if ($CheckAsegOutliers) then
+
+end
+
+# make snapshots
+if ($TakeSnapshots) then
+echo "---"
+echo "making snapshots ..."
+set cmd = ($scriptsDir/jlp_snapshots3.csh -subjid $subjects -o $outputHMTLfile)
+if ( $DetailedSnapshots ) set cmd = ( $cmd -detailed )
+if ( $OverwriteSnapshots ) set cmd = ( $cmd -overwrite )
+echo "Running command: $cmd"
+echo "---"
+sleep 3
+$cmd
+
+endif # if ($TakeSnapshots) then
+
+
+
+exit 0;
+
+
+
+############--------------##################
+
+parse_args:
+set cmdline = ($argv);
+while( $#argv != 0 )
+
+  set flag = $argv[1]; shift;
+
+  switch($flag)
+
+    case "-s":
+    case "-subjid":
+        if ( $#argv == 0) goto arg1err;
+        set proceed = 1;
+        while ( $#argv != 0 && $proceed )
+            set subjects = ($subjects $argv[1]); shift;
+            if ( $#argv != 0 ) then
+                set proceed = `echo "$argv[1]" | gawk '{ if (substr($1, 1, 1) == "-") {print "0"} else {print "1"} }'`;
+            endif
+        end
+      breaksw
+    
+    case "-scriptsdir":
+      if ( $#argv == 0) goto arg1err;
+      set scriptsDir = $argv[1]; shift;
+      setenv RECON_CHECKER_SCRIPTS $scriptsDir
+      breaksw
+
+    case "-sf":
+      if ( $#argv == 0) goto arg1err;
+      set subjects = `cat $argv[1]`; shift;
+      breaksw
+
+    case "-o":
+      if ( $#argv == 0) goto arg1err;
+      set outputHMTLfile = $argv[1]; shift;
+      breaksw
+
+    case "-outputfileorderfile"
+      if ( $#argv == 0) goto arg1err;
+      set output_file_order_file = $argv[1]; shift;
+      breaksw
+
+    case "-genoutputorderfile"
+      set GenerateNewOutputOrderFile = 1;
+      breaksw
+
+    case "-detailed"
+      set DetailedSnapshots = 1;
+      breaksw
+    
+    case "-overwrite"
+      set OverwriteSnapshots = 1;
+      breaksw
+
+    case "-asegMeansFile"
+      if ( $#argv == 0) goto arg1err;
+	set asegMeansFile = $argv[1]; shift;
+	if ( ! -e $asegMeansFile ) then
+
+	endif
+      breaksw
+
+    # ----
+    # ----
+    case "-checkasegoutliers":
+      set CheckAsegOutliers = 1;
+      breaksw
+
+    case "-nocheckasegoutliers":
+      set CheckAsegOutliers = 0;
+      breaksw
+
+    case "-checkstatuslog":
+      set CheckStatusLog = 1;
+      breaksw
+
+    case "-nocheckstatuslog":
+      set CheckStatusLog = 0;
+      breaksw
+
+    case "-checkoutputfiles":
+      set CheckOutputFiles = 1;
+      breaksw
+
+    case "-nocheckoutputfiles":
+      set CheckOutputFiles = 0;
+      breaksw
+
+    case "-takesnapshots":
+      set TakeSnapshots = 1;
+      breaksw
+
+    case "-snapshotsonly":
+      set TakeSnapshots = 1;
+	set CheckStatusLog = 0;
+	set CheckOutputFiles = 0;
+	set CheckAsegOutliers = 0;
+      breaksw
+
+    case "-notakesnapshots":
+      set TakeSnapshots = 0;
+      breaksw
+
+    case "-ignore":
+      if ( $#argv == 0) goto arg1err;       # get all of the processes to ignore
+      set proceed = 1       
+      while ( $#argv != 0 && $proceed )
+        echo "$argv[1]" >> $tmpFile; shift;
+        if ( $#argv != 0 ) then
+            set proceed = `echo "$argv[1]" | gawk '{ if (substr($1,1,1) == "-") {print "0"} else {print "1"}}'`
+        endif
+      end
+      breaksw
+
+
+    # ----
+
+    default:
+        echo ERROR: Flag $flag unlegal.
+        echo $cmdline
+        exit 1
+    breaksw
+    endsw
+
+end
+goto parse_args_return;
+
+
+
+############--------------##################
+############--------------##################
+check_params:
+    if($#subjects == 0) then
+        echo "USAGE ERROR: must specify a subjid"
+        exit 1;
+    endif
+    if($TakeSnapshots && $#outputHMTLfile == 0) then
+        echo "USAGE ERROR: must specify an output html file with -o <output html file>"
+        exit 1;
+    endif
+    if(! -e $asegMeansFile) then
+	echo "ERROR: $asegMeansFile does not exist."
+	echo "       Skipping aseg outlier check..."
+	set CheckAsegOutliers = 0;
+    endif
+goto check_params_return;
+############--------------##################
+
+###########--------------##################
+
+##############--------------##################
+##############--------------##################
+arg1err:
+  echo "ERROR: flag $flag requires one argument"
+  exit 1
+##############--------------##################
+##############--------------##################
+
+
+##############--------------##################
+##############--------------##################
+usage_err:
+  echo "USAGE: recon_checker -s <subject1> [<subject2> ...] -o <output file>"
+  echo "Options: "
+  echo "    -sf <subject file>: specify a file with a list of subjects. May be used "
+  echo "			instead of -s or -subjid to specify subjects."
+  echo "    -outputfileorderfile <file order file>: specify a file which lists the "
+  echo "			proper order of the output files."
+  echo "    -ignore <process1 to ignore> <process2 to ignore> ...: specify processes "
+  echo "			to ignore"
+  echo "    -detailed: take a more detailed set of snapshots"
+  echo " "
+  echo "    -overwrite: take all snapshots, even if there are previously taken ones."
+  echo " "    
+  echo "    -genoutputorderfile: generate the file order from the first subject."
+  echo " "
+  echo "    -checkasegoutliers"
+  echo "    -nocheckasegoutliers"
+  echo "    -asegMeansFile <file>"
+  echo "    -checkstatuslog"
+  echo "    -nocheckstatuslog"
+  echo "    -checkoutputfiles"
+  echo "    -nocheckoutputfiles"
+  echo "    -takesnapshots"
+  echo "    -notakesnapshots"
+  echo "    -snapshotsonly: control program execution";
+  exit 1
+##############--------------##################
+##############--------------##################
+

@@ -1,0 +1,450 @@
+#!/bin/bash
+
+export FuNP=/camin1/bypark/FuNP         # Change this to your FuNP directory
+PATH=${PATH}:${FuNP}:${FuNP}/functions
+export PATH
+source "${FuNP}/functions/utilities.sh"
+
+version() {
+    echo -e "\nFuNP March 2024 (v0.1)"
+}
+
+help() {
+    echo -e "
+    COMMAND
+    # STRUCTURAL PROCESSING #
+    \t-struc      : Structural processing
+
+    \t(Mandatory)
+    \t-t1         : T1-weighted image (NIFTI) with full directory
+    \t-out        : Output directory (~/struc folder will be created under the entered output directory)
+
+    \t(Optional)
+    \t-proc_fs    : FreeSurfer recon-all directory if it has already been run
+    \t-threads    : Number of threads (default: 5)
+
+    \tExample     : funp -struc -t1 /data/directory/t1w.nii.gz -out /out/directory -threads 2
+
+    # DIFFUSION PROCESSING #
+    \t-dwi        : Diffusion processing
+
+    \t(Mandatory)
+    \t-dwi_main   : DWI main phase data (NIFTI) with full directory
+    \t-dwi_bval   : DWI b-value data with full directory
+    \t-dwi_bvec   : DWI b-vector data with full directory
+    \t-pe_dir     : Phase encoding direction (e.g., AP, PA, LR, RL, SI, IS)
+    \t-strucDir   : Directory of structural processing
+    \t-readout    : Total readout time (float number)
+    \t-out        : Output directory (~/dwi folder will be created under the entered output directory)
+
+    \t(Optional)
+    \t-dwi_rev    : DWI reverse phase data (NIFTI) with full directory
+    \t-threads    : Number of threads (default: 5)
+
+    \tExample     : funp -dwi -dwi_main /data/directory/dwi.nii.gz -dwi_bval /data/directory/dwi.bval -dwi_bvec /data/directory/dwi.bvec -pe_dir AP -strucDir /out/directory/struc -readout 0.0481 -out /out/directory -threads 10
+
+    # FUNCTIONAL PROCESSING #
+    \t-func       : Functional processing
+
+    \t(Mandatory)
+    \t-func_main  : fMRI main phase data (NIFTI) with full directory
+    \t-wbDir      : wb_adjust folder (typically, ~/struc/wb_adjust)
+    \t-fix_train  : Training files (.RData) for ICA-FIX
+                    Standard: TR=3s, 3.5mm^3
+                    HCP_hp2000: TR=0.7s, 2mm^3, no spatial smoothing, 2000s HPF
+                    UKBiobank: TR=0.735s, 2.4mm^3, no spatial smoothing, 100s HPF
+    \t-out        : Output directory (~/func folder will be created under the entered output directory)
+
+    \t(Optional)
+    \t-slice_order: Slice order file for slice timing correction (each slice has slicing order, default: interleaved)
+    \t-func_rev   : fMRI reverse phase data (NIFTI) with full directory
+    \t-readout    : Total readout time (float number)
+    \t-threads    : Number of threads (default: 5)
+
+    \tExample     : funp -func -func_main /data/directory/func.nii.gz -wbDir /data/directory/struc/wb_adjust -fix_train Standard -func_rev /data/directory/func_rev.nii.gz -readout 0.05162 -out /out/directory -threads 10
+
+    # GEODESIC DISTANCE PROCESSING #
+    \t-gd         : Geodesic distance processing
+
+    \t(Mandatory)
+    \t-wbDir      : wb_adjust folder (typically, ~/struc/wb_adjust)
+    \t-out        : Output directory (~/gd folder will be created under the entered output directory)
+
+    \t(Optional)
+    \t-threads    : Number of threads (default: 5)
+
+    \tExample     : funp -gd -wbDir /data/directory/struc/wb_adjust -out /out/directory -threads 10
+
+    # MICROSTRUCTURAL PROCESSING #
+    \t-mpc        : Microstructural profile covariance processing
+
+    \t(Mandatory)
+    \t-t1         : T1-weighted image (NIFTI) with full directory
+    \t-t2         : T2-weighted image (NIFTI) with full directory
+    \t-wbDir      : wb_adjust folder (typically, ~/struc/wb_adjust)
+    \t-out        : Output directory
+    \t              If '-t2' is not defined when '-mpc' option is used, the T2w will be synthesized using GAN-MAT
+    \t              https://github.com/CAMIN-neuro/GAN-MAT
+
+    \t(Optional)
+    \t-threads    : Number of threads (default: 5)
+
+    \tExample     : funp -mpc -t1 /data/directory/t1w.nii.gz -t2 /data/directory/t2w.nii.gz -wbDir /data/directory/struc/wb_adjust -out /out/directory -threads 10
+
+    # QUALITY CONTROL #
+    \t-qc         : Quality control
+
+    \t(Mandatory)
+    \t-type       : Specify modality types for QC (struc, dwi, func, gd, mpc)
+    \t            : Squared bracket should be used for definind different modalities: [*,*]
+    \t-out        : Output directory
+
+    \tExample     : funp -qc -type [struc,func] -out /out/directory
+
+    USAGE
+
+    DOCUMENTATION
+
+    REPOSITORY
+
+    DEPENDENCIES
+        > AFNI
+        > FSL
+        > FreeSurfer
+        > ANTs
+        > MRtrix3
+        > workbench
+        > python
+        > R
+        > FIX
+
+    CAMIN Lab
+        https://github.com/CAMIN-neuro/
+        https://by9433.wixsite.com/boyongpark
+    "
+}
+
+### ARGUMENTS ###
+struc=None
+t1=""
+proc_fs=None
+
+dwi=None
+dwi_main=""
+dwi_bval=""
+dwi_bvec=""
+pe_dir=""
+strucDir=""
+dwi_rev=None
+
+func=None
+func_main=""
+fix_train=""
+slice_order=None
+func_rev=None
+
+gd=None
+
+mpc=None
+t2=None
+
+qc=None
+type=""
+
+wbDir=""
+out=""
+threads=5
+readout=None
+
+for arg in "$@"
+do
+    case "$arg" in
+    -h|-help)
+        help
+        exit 1
+    ;;
+
+    -v|-version)
+        version
+        exit 1
+    ;;
+
+    -struc)
+        struc=TRUE
+        shift
+    ;;
+
+    -t1)
+        t1=TRUE
+        t1=$2
+        shift;shift
+    ;;
+
+    -proc_fs)
+        proc_fs=TRUE
+        proc_fs=$2
+        shift;shift
+    ;;
+
+    -dwi)
+        dwi=TRUE
+        shift
+    ;;
+
+    -dwi_main)
+        dwi_main=TRUE
+        dwi_main=$2
+        shift;shift
+    ;;
+
+    -dwi_bval)
+        dwi_bval=TRUE
+        dwi_bval=$2
+        shift;shift
+    ;;
+
+    -dwi_bvec)
+        dwi_bvec=TRUE
+        dwi_bvec=$2
+        shift;shift
+    ;;
+
+    -pe_dir)
+        pe_dir=TRUE
+        pe_dir=$2
+        shift;shift
+    ;;
+
+    -strucDir)
+        strucDir=TRUE
+        strucDir=$2
+        shift;shift
+    ;;
+
+    -dwi_rev)
+        dwi_rev=TRUE
+        dwi_rev=$2
+        shift;shift
+    ;;
+
+    -func)
+        func=TRUE
+        shift
+    ;;
+
+    -func_main)
+        func_main=TRUE
+        func_main=$2
+        shift;shift
+    ;;
+
+    -fix_train)
+        fix_train=TRUE
+        fix_train=$2
+        shift;shift
+    ;;
+
+    -func_rev)
+        func_rev=TRUE
+        func_rev=$2
+        shift;shift
+    ;;
+
+    -slice_order)
+        slice_order=TRUE
+        slice_order=$2
+        shift;shift
+    ;;
+
+    -gd)
+        gd=TRUE
+        shift
+    ;;
+
+    -mpc)
+        mpc=TRUE
+    shift
+    ;;
+
+    -t2)
+        t2=TRUE
+        t2=$2
+        shift;shift
+    ;;
+
+    -qc)
+        qc=TRUE
+    shift
+    ;;
+
+    -type)
+        type=TRUE
+        type=$2
+        shift;shift
+    ;;
+
+    -wbDir)
+        wbDir=TRUE
+        wbDir=$2
+        shift;shift
+    ;;
+
+    -out)
+        out=TURE
+        out=$2
+        shift;shift
+    ;;
+
+    -threads)
+        threads=TURE
+        threads=$2
+        shift;shift
+    ;;
+
+    -readout)
+        readout=TRUE
+        readout=$2
+        shift;shift
+    ;;
+
+    -*)
+        Error "Unknown option exist"
+        exit 1
+    ;;
+        esac
+done
+
+### STRUCTURAL PROCESSING ###
+if [ $struc == TRUE ]; then
+    echo -e "
+#######################
+ Structural processing
+#######################"
+    outDir=${out}/struc
+    if [ -d ${outDir} ]; then 
+        Error "struc directory already exists!!!"
+        exit 1; 
+    else
+        mkdir -m 777 -p ${outDir}
+    fi
+
+    log_file="${outDir}/log_struc_$(date +'%Y-%m-%d_%H:%M:%S')"
+    CMD="${FuNP}/functions/struc.sh $t1 $outDir $proc_fs $threads"
+
+    $CMD | tee -a ${log_file}.txt
+fi
+
+### DIFFUSION PROCESSING ###
+if [ $dwi == TRUE ]; then
+    echo -e "
+######################
+ Diffusion processing
+######################"
+    outDir=${out}/dwi
+    if [ -d ${outDir} ]; then 
+        Error "dwi directory already exists!!!"
+        exit 1; 
+    else
+        mkdir -m 777 -p ${outDir}
+    fi
+
+    log_file="${outDir}/log_dwi_$(date +'%Y-%m-%d_%H:%M:%S')"
+    CMD="${FuNP}/functions/dwi.sh $dwi_main $dwi_bval $dwi_bvec $pe_dir $strucDir $readout $dwi_rev $outDir $threads"
+
+    $CMD | tee -a ${log_file}.txt
+fi
+
+### FUNCTIONAL PROCESSING ###
+if [ $func == TRUE ]; then
+    echo -e "
+#######################
+ Functional processing
+#######################"
+    outDir=${out}/func
+    if [ -d ${outDir} ]; then 
+        Error "func directory already exists!!!"
+        exit 1; 
+    else
+        mkdir -m 777 -p ${outDir}
+    fi
+
+    log_file="${outDir}/log_func_$(date +'%Y-%m-%d_%H:%M:%S')"
+    CMD="${FuNP}/functions/func.sh $func_main $wbDir $fix_train $slice_order $func_rev $readout $outDir $threads"
+
+    $CMD | tee -a ${log_file}.txt
+fi
+
+### GEODESIC DISTANCE PROCESSING ###
+if [ $gd == TRUE ]; then
+    echo -e "
+##############################
+ Geodesic distance processing
+##############################"
+    outDir=${out}/gd
+    if [ -d ${outDir} ]; then 
+        Error "gd directory already exists!!!"
+        exit 1; 
+    else
+        mkdir -m 777 -p ${outDir}
+    fi
+
+    log_file="${outDir}/log_gd_$(date +'%Y-%m-%d_%H:%M:%S')"
+    CMD="${FuNP}/functions/gd.sh $wbDir $outDir $threads"
+
+    $CMD | tee -a ${log_file}.txt
+fi
+
+### MICROSTRUCTURAL PROCESSING ###
+if [ $mpc == TRUE ]; then
+    echo -e "
+################
+ MPC processing
+################"
+    outDir=${out}/mpc
+    if [ -d ${outDir} ]; then 
+        Error "mpc directory already exists!!!"
+        exit 1; 
+    else
+        mkdir -m 777 -p ${outDir}
+    fi
+
+    log_file="${outDir}/log_mpc_$(date +'%Y-%m-%d_%H:%M:%S')"
+    if [[ $t2 != None ]]; then
+        # Calculate MPC using entered T1w & T2w
+        CMD="${FuNP}/functions/mpc.sh $t1 $t2 $wbDir $outDir"
+    else
+        # Calculate MPC using entered T1w and GAN-MAT-derived T2w
+        CMD="${FuNP}/functions/mpc_ganmat.sh $t1 $outDir"
+    fi 
+
+    $CMD | tee -a ${log_file}.txt
+fi
+
+### QUALITY CONTROL ###
+if [ $qc == TRUE ]; then
+    echo -e "
+#################
+ Quality control
+#################"
+    outDir=${out}/qc
+    if [ -d ${outDir} ]; then 
+        Error "qc directory already exists!!!"
+        exit 1; 
+    else
+        mkdir -m 777 -p ${outDir}
+    fi
+
+    log_file="${outDir}/log_qc_$(date +'%Y-%m-%d_%H:%M:%S')"
+    CMD="${FuNP}/functions/qc.sh $type $outDir"
+    
+    $CMD | tee -a ${log_file}.txt
+fi
+
+
+
+
+
+
+
+
+

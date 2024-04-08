@@ -1,0 +1,1 @@
+convert -delay 12 -adjoin snapshot-wm-C-*.gif test.gif

@@ -1,0 +1,245 @@
+#!/bin/csh -f
+# ORIGINAL VERSION BY Jenni Pacheco
+# MODIFIED BY David Koh
+#	      Louis Vinke
+#
+# DEPENDENCIES:
+#    - Snapshots:
+#	- snap_tkmedit.csh $s
+#	- snap_tksurfer.csh $s
+#	- snap_tkmedit.tcl
+#       - snap_tksurfer.tcl
+#
+#
+# CHANGE LOG:
+# 2006-06-06: (steph)
+#    - added -o argument so the user can specify an output html file.  If -o
+#      flag is not used, snapshots.html is output with all images in the 
+#      $SUBJECTS_DIR/rgb/snaps directory
+# 2006-08-30: (david)
+#    - added -overwrite flag so the user can specify to re-take previously
+#      captured images
+#2006-10-12: (jenni)
+#   -i wrote new snapshot scripts, so that it would go faster. I've put those
+#    in and taken out the old snapshot scripts.
+#
+#
+#
+#
+#
+
+#set echo=1
+
+set subjects = ();
+# default html output file
+set outputFile = ()
+set sumlog = ();
+
+set DetailedSnapshots = 0
+set overwrite = 0
+
+goto parse_args;
+parse_args_return:
+
+goto check_params;
+check_params_return:
+
+# ---
+echo ""
+echo "===================="
+echo "Snapshots are about to be collected.  Your screen saver should"
+echo "be disabled and no windows should be overlapping the tkmedit and"
+echo "tksurfer screens that will open.  Ctrl+C now if you are not ready!"
+echo "===================="
+echo ""
+
+sleep 6
+
+foreach s ($subjects)
+
+    if (! -e $SUBJECTS_DIR/QA/$s/rgb/ ) then
+	mkdir -p $SUBJECTS_DIR/QA/$s/rgb/
+    endif
+    if (! -e $SUBJECTS_DIR/QA/$s/rgb/snaps/ ) then
+	mkdir -p $SUBJECTS_DIR/QA/$s/rgb/snaps/
+    endif
+    echo ""
+    echo "     Taking snapshots for subject $s" | tee -a $sumlog
+    
+    set takeSnaps = 0 
+    # tkmedit   
+    foreach reg (aseg-cor1 aseg-cor2 aseg-cor3 aseg-cor4 aseg-cor5 aseg-cor6 aseg-cor7 aseg-cor8 aseg-cor9 aseg-cor10 aseg-cor11 aseg-cor12 aseg-cor13 aseg-cor14 aseg-templh aseg-temprh)
+	if ( (! -e $SUBJECTS_DIR/QA/$s/rgb/snaps/${s}_${reg}.gif) && (! -e $SUBJECTS_DIR/QA/$s/rgb/snaps/${s}_${reg}.rgb) || ($overwrite == 1) ) then
+	    set takeSnaps = 1
+	endif
+    end
+    if($takeSnaps == 1) then
+        $RECON_CHECKER_SCRIPTS/snap_tkmedit_aseg.csh $s
+    else
+	echo "      Tkmedit images already exist for subject $s. Skipping this step..." | tee -a $sumlog
+	sleep 2
+    endif
+
+    #tksurfer
+#    set takeSnaps = 0
+#    foreach reg (parc_lh_lat parc_lh_med parc_lh_inf parc_rh_lat parc_rh_med parc_rh_inf)
+#	if ( (! -e $SUBJECTS_DIR/QA/$s/rgb/snaps/${s}_${reg}.gif) && (! -e $SUBJECTS_DIR/QA/$s/rgb/snaps/${s}_${reg}.rgb) || ($overwrite == 1) ) then
+#	    set takeSnaps = 1
+#	endif
+#    end
+#    if ($takeSnaps == 1) then
+#        $RECON_CHECKER_SCRIPTS/snap_tksurfer.csh $s
+#    else
+#	echo "      Tksurfer images already exist for subject $s. Skipping this step..." | tee -a $sumlog
+#
+#	sleep 2
+#    endif
+
+#	if ($DetailedSnapshots == 1) then
+#		echo ""
+#	        echo "     Taking detailed snapshots for subject $s" | tee -a $sumlog
+#		if( ! -e $SUBJECTS_DIR/QA/$s/rgb/snaps/snapshot-talairach-C-128.gif || ($overwrite == 1) ) then 
+#			$RECON_CHECKER_SCRIPTS/takesnapshotpreset.sh -twas $s
+#		else
+#			echo "      Detailed images already exist for subject $s. Skipping this step..." | tee -a $sumlog
+#			sleep 2
+#		endif
+#	endif
+
+end #foreach s ($subjects)
+
+echo ""
+echo "     Converting snapshots to tiff and making html page..."
+echo ""
+# images: <$SUBJID>_<region>.gif
+if ( $#outputFile == 0 ) then
+	
+	echo "    ERROR: Output html filename for snapshots not specified." | tee -a $sumlog
+	echo "" | tee -a $sumlog
+else
+    foreach s ($subjects)
+	cd $SUBJECTS_DIR/QA/$s/rgb/snaps
+	if (`ls | egrep -c "\.tiff"`) then
+	    foreach f (*.tiff)
+		set out = `echo -n $f | head -c -4`
+	       convert -scale 500x500 $f $out.gif
+		rm $f	
+	    end
+	endif 
+    end
+endif
+
+
+
+cd $SUBJECTS_DIR
+
+echo '<html><head>' > $outputFile
+echo '   <title>Subject Index</title><center><font size="+2">Subject Index</font></center></head><body>' >> $outputFile
+foreach s ($subjects)
+
+    echo ' <font size="+1">'"$s</font> <br />" >> $outputFile
+	echo ' <TABLE> ' >> $outputFile
+
+	set titlelist = ( "aseg" "surfs" "inflated" "curv" "parc" )
+	set titleindex = 1
+	foreach reglist ("aseg-cor1 aseg-cor2 aseg-cor3 aseg-cor4 aseg-cor5 aseg-cor6 aseg-cor7 aseg-cor8 aseg-cor9 aseg-cor10 aseg-cor11 aseg-cor12 aseg-cor13 aseg-cor14 aseg-templh aseg-temprh" )
+	    echo '<TR>'  >> $outputFile
+		echo "<TD VALIGN=CENTER>$titlelist[$titleindex]</TD>" >> $outputFile
+	    endif
+	    @ titleindex = $titleindex + 1
+	    foreach reg ( $reglist )
+		echo '<TD ALIGN=CENTER VALIGN=BOTTOM>' >> $outputFile
+
+		# take the string, get rid of the aseg-cor1 part, replace it with $reg
+		# to form the image name
+		echo '<IMG SRC="'$SUBJECTS_DIR/QA/$s/rgb/snaps/${s}_${reg}.gif'" width="500" height="500">' >> $outputFile
+
+		echo '<div style="text-align: center">'" $reg</div></A></TD>" >> $outputFile
+	    end
+	    echo '</TR>' >> $outputFile
+	end
+
+	echo '</TABLE></center>' >> $outputFile 
+
+
+end
+
+echo "   </body></html>" >> $outputFile
+
+echo "" >> $sumlog
+echo "View your snapshots by opening this file in an internet browser:" | tee -a $sumlog
+echo "$SUBJECTS_DIR/$outputFile" | tee -a $sumlog
+echo "" | tee -a $sumlog
+
+
+# ----
+
+exit 0;
+
+############--------------##################
+parse_args:
+set cmdline = ($argv);
+while( $#argv != 0 )
+
+  set flag = $argv[1]; shift;
+
+  switch($flag)
+
+    case "-s":
+    case "-subjid":
+        if ( $#argv == 0) goto arg1err;
+        set proceed = 1;
+        while ( $#argv != 0 && $proceed )
+            set subjects = ($subjects $argv[1]); shift;
+            if ( $#argv != 0 ) then
+                set proceed = `echo "$argv[1]" | gawk '{ if (substr($1, 1, 1) == "-") {print "0"} else {print "1"} }'`;
+            endif
+        end
+      breaksw
+
+    case "-sf":
+      if ( $#argv == 0) goto arg1err;
+      set subjects = `cat $argv[1]`; shift;
+      breaksw
+
+    # output file
+    case "-o":
+	if ( $#argv == 0) goto arg1err;
+	set outputFile = $argv[1]; shift;
+    breaksw
+
+    case "-detailed"
+      set DetailedSnapshots = 1;
+      breaksw
+
+    case "-sumlog":
+      set sumlog = $argv[1]; shift;
+      breaksw
+
+    case "-overwrite"
+      set overwrite = 1;
+      breaksw
+    # ----
+
+    default:
+        echo ERROR: Flag $flag unrecognized. See -help for list of proper flags.
+        echo $cmdline
+        exit 1
+    breaksw
+    endsw
+
+end
+goto parse_args_return;
+
+
+
+############--------------##################
+############--------------##################
+check_params:
+    if($#subjects == 0) then
+        echo "USAGE ERROR: must specify a subjid"
+	exit 1;
+    endif
+goto check_params_return;
+############--------------##################
+

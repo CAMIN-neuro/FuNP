@@ -1,0 +1,151 @@
+#!/bin/csh -ef
+# original by Louis Vinke on 06/17/11
+
+set subject = ();
+set Details = 0;
+set slog = ();
+set sumlog = ();
+
+goto parse_args;
+parse_args_return:
+
+goto check_params;
+check_params_return:
+
+# ---
+if ($Details) echo "     SUBJECTS_DIR is $SUBJECTS_DIR "
+if ($Details) echo "     Processing subject $subject"
+if ($Details) echo ""
+#sleep 2;
+
+pushd $SUBJECTS_DIR/$subject > /dev/null
+
+wm-anat-snr --s $subject
+
+set output = `cat $SUBJECTS_DIR/$subject/stats/wmsnr.e3.dat`
+
+	set SNR = `echo $output | gawk '{print $2}'`
+	set mWM = `echo $output | gawk '{print $3}'`
+	set stdWM = `echo $output | gawk '{print $4}'`
+	set voxWM = `echo $output | gawk '{print $5}'`
+
+	echo ""
+	echo "wm-anat-snr results ($subject):" | tee -a $slog
+	echo "SNR	meanWM	stdWM	voxWM	" | tee -a $slog
+	echo "$SNR	$mWM	$stdWM	$voxWM" | tee -a $slog
+	echo ""
+
+	set SNRout = `echo $SNR | gawk '{ if($1 >= 16){ print 1 } } { if($1 < 16){ print 2}}'`
+	set stdWMout = `echo $stdWM | gawk '{ if($1 >= 5.5){ print 1 } } { if($1 < 5.5){ print 2}}'`
+ 	#echo $SNRout
+	#echo $stdWMout
+
+	if ($SNRout == 2) then
+		if ($stdWMout == 1) then
+			echo "     $subject	$SNR*	$mWM	$stdWM*	$voxWM <------" >> $sumlog
+			echo "!!WARNING!!: $subject is possible SNR & stdWM outlier!!" | tee -a $slog
+			sleep 2
+		else
+			echo "     $subject	$SNR*	$mWM	$stdWM	$voxWM <------" >> $sumlog
+			echo "!!WARNING!!: $subject is possible SNR outlier!!" | tee -a $slog
+			sleep 2
+		endif
+	else
+		echo "     $subject	$SNR	$mWM	$stdWM	$voxWM" >> $sumlog
+	endif	
+
+theend:
+
+popd > /dev/null
+
+exit 0;
+
+# loop through all subjects, output to indi detail/sum logs, and all list to ALL summary, identify any possible outliers, in terminal and in details (add ** or !!)
+
+
+############--------------##################
+parse_args:
+set cmdline = ($argv);
+while( $#argv != 0 )
+
+  set flag = $argv[1]; shift;
+
+  switch($flag)
+
+    case "-s":
+    case "-subjid":
+        if ( $#argv == 0) goto arg1err;
+        set proceed = 1;
+        while ( $#argv != 0 && $proceed )
+            set subject = ($subject $argv[1]); shift;
+            if ( $#argv != 0 ) then
+                set proceed = `echo "$argv[1]" | gawk '{ if (substr($1, 1, 1) == "-") {print "0"} else {print "1"} }'`;
+            endif
+        end
+        breaksw
+
+    case "-sf":
+      if ( $#argv == 0) goto arg1err;
+      set subject = `cat $argv[1]`; shift;
+      breaksw
+
+    case "-details":
+	set Details = 1;
+      breaksw
+
+    case "-slog":
+      set slog = $argv[1]; shift;
+      breaksw
+
+    case "-sumlog":
+      set sumlog = $argv[1]; shift;
+      breaksw
+
+    # ----
+
+    default:
+        echo ERROR: Flag $flag unlegal.
+        echo $cmdline
+        exit 1
+    breaksw
+    endsw
+
+end
+goto parse_args_return;
+
+
+############--------------##################
+############--------------##################
+check_params:
+    if($#subject == 0) then
+        echo "     ERROR: must specify a subjid"
+        exit 1;
+    endif
+goto check_params_return;
+############--------------##################
+
+
+##############--------------##################
+##############--------------##################
+arg1err:
+  echo "     ERROR: flag $flag requires one argument"
+  exit 1
+##############--------------##################
+##############--------------##################
+
+
+##############--------------##################
+##############--------------##################
+usage_err:
+  echo "     USAGE: flags:"
+  echo "    "
+  echo "     -s"
+  echo "     -subjid"
+  echo "     -sf"
+  echo "	 a file of a list of subjects"
+  echo "     -details"
+  echo "     -slog"
+  echo "     -sumlog"
+  exit 1
+##############--------------##################
+##############--------------##################

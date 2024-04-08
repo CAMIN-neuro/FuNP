@@ -1,0 +1,623 @@
+#!/bin/tcsh -f
+# original by Vasanth Pappu
+# modified by David Koh on 8/10/06, 8/24/06
+# modified by Vasanth Pappu on 09/27/06
+# modified by Jenni Pacheco on 09/28/06, 9/29/06
+# modified by Stephanie Lee on 10/16/06
+# modified by Jenni Pacheco on 11/09/06
+# modified by Stephanie Lee on 11/13/06 (status log checker)
+# modified by Louis Vinke on 06/17/11 - 
+
+if ($#argv == 0) goto usage_err;
+
+set CheckOutputFiles = 1;
+set CheckStatusLog = 1;
+set CheckAsegOutliers = 1;
+set CheckSNR_WM = 1;
+set TakeSnapshots = 1;
+set OverwriteSnapshots = 0;
+set MakeAsegLookUp = 0;
+set DetailedSnapshots = 0;
+set GenerateNewOutputOrderFile = 0;
+set GenerateNewStatusFile = 0;
+set subjects = ();
+set output_file_order_file = 0;
+set tmpFile = $SUBJECTS_DIR/QA/recon_checker.tmp # temp file for the -ignore flag
+set outputHTMLfile = ();
+set scriptsDir = $QA_TOOLS
+set checkStatusLogCommand = ();
+setenv RECON_CHECKER_SCRIPTS $QA_TOOLS
+set asegMeansFile = $RECON_CHECKER_SCRIPTS/DefaultAsegMeans.txt
+
+# may need to clean up from a previous run
+if ( -e $tmpFile ) then
+    rm $tmpFile
+endif
+
+goto parse_args;
+parse_args_return:
+
+goto check_params;
+check_params_return:
+
+
+#sleep 2;
+#sleep 2;
+#echo "CheckOutputFiles = $CheckOutputFiles"
+#echo "CheckStatusLog = $CheckStatusLog"
+#echo "CheckAsegOutliers = $CheckAsegOutliers"
+#echo "CheckSNR_WM = $CheckSNR_WM"
+#echo "TakeSnapshots = $TakeSnapshots"
+sleep 2;
+
+if (! -e $SUBJECTS_DIR/QA/ ) then
+	mkdir -p $SUBJECTS_DIR/QA/
+    endif
+
+set sumlog = $SUBJECTS_DIR/QA/recon_checker.ALL.summary.log
+
+echo "Writing QA summary log to:"
+echo "$sumlog"
+echo ""
+
+echo "----------------" >> $sumlog
+
+date >> $sumlog
+
+echo "----------------" >> $sumlog
+
+echo "" | tee -a $sumlog
+echo "SUBJECTS_DIR: $SUBJECTS_DIR " | tee -a $sumlog
+echo "" | tee -a $sumlog
+
+# Generate new outputfileorderfile
+if( $GenerateNewOutputOrderFile ) then
+
+    pushd $SUBJECTS_DIR/$subjects[1] > /dev/null
+    
+    echo -n "Generating file order list using subject $subjects[1] ..."
+    echo "Generating file order list using subject $subjects[1]" >> $sumlog
+
+    # 0??.mgz files excluded from list
+
+    set mrifilelist = (`ls -1tr --full-time mri/*.mgz mri/*.lta mri/*.m3z | awk '{print $9}'`)
+    set transfilelist = (`ls -1tr --full-time mri/transforms/*.xfm mri/transforms/*.mgz mri/transforms/*.lta mri/transforms/*.m3z | awk '{print $9}'`)
+    set surffilelist = (`ls -1tr --full-time surf | awk '{print $9}'`)
+    set statsfilelist = (`ls -1tr --full-time stats | awk '{print $9}'`)
+    #set scriptsfilelist = (`ls -1tr --full-time scripts | awk '{print $9}'`)
+    set labelfilelist = (`ls -1tr --full-time label | awk '{print $9}'`)
+
+    # Compile all different file lists into one list
+    set filelist = ();
+
+    foreach mrifile ($mrifilelist)
+	set filelist = ( $filelist "$mrifile" )
+    end
+    foreach transfile ($transfilelist)
+	set filelist = ( $filelist "$transfile" )
+    end
+    foreach surffile ($surffilelist)
+	set filelist = ( $filelist "surf/$surffile" )
+    end
+    foreach statsfile ($statsfilelist)
+	set filelist = ( $filelist "stats/$statsfile" )
+    end
+    #foreach scriptsfile ($scriptsfilelist)
+	#set filelist = ( $filelist "scripts/$scriptsfile" )
+    #end
+    foreach labelfile ($labelfilelist)
+	set filelist = ( $filelist "label/$labelfile" )
+    end
+    echo "" > unsorted_files
+
+    # Sort all files in new outputfileorderfile
+    foreach file ( $filelist )
+      if ( ! -d $file ) then
+	set timestamp = `stat -c %y $file`
+	echo "$timestamp $file" >> unsorted_files
+      endif
+    end
+
+	#Check for pre-existing local_default_output_order_file, and make backup
+	if (-e $SUBJECTS_DIR/QA/local_default_output_order_file) then
+
+	    echo "Local default file order list already exists, moving previous file to *.bak" | tee -a $sumlog
+	    echo "mv $SUBJECTS_DIR/QA/local_default_output_order_file $SUBJECTS_DIR/QA/local_default_output_order_file.bak" | tee -a $sumlog
+	    mv $SUBJECTS_DIR/QA/local_default_output_order_file $SUBJECTS_DIR/QA/local_default_output_order_file.bak
+	endif 
+
+    sort unsorted_files | awk '{print $4}' > $SUBJECTS_DIR/QA/local_default_output_order_file
+    rm unsorted_files
+    set output_file_order_file = "$SUBJECTS_DIR/QA/local_default_output_order_file"
+    echo "DONE"
+    echo ""
+    popd > /dev/null
+
+endif # if( $GenerateNewOutputOrderFile ) then
+
+# Check new outputfileorderfile argument specifed or file previously generated
+	if ($CheckOutputFiles) then
+	 echo -n "Checking if output file order file specified..."
+
+		if( -e $output_file_order_file) then
+    			echo "YES"
+			echo "     Using file list: $output_file_order_file" | tee -a $sumlog
+		else
+    			echo "NO"
+    			echo "     File order list was not specified."
+
+			if( -e $SUBJECTS_DIR/QA/local_default_output_order_file) then
+				echo "     Found local default file order list."
+				set output_file_order_file = "$SUBJECTS_DIR/QA/local_default_output_order_file"
+				echo "     Using file list: $output_file_order_file" | tee -a $sumlog
+			else
+				echo "     Using default order based on FreeSurfer v5.1 output"
+	    			set output_file_order_file = "$RECON_CHECKER_SCRIPTS/default_FOF_FSv5.1"
+		                echo "     Using file list: $output_file_order_file" | tee -a $sumlog
+			endif
+		endif #if( -e $output_file_order_file) then
+         endif #if ($CheckOutputFiles) then
+echo ""
+
+echo "" >> $sumlog
+#echo "     Processing subject(s): $subjects " >> $sumlog
+#echo "Processing subject(s): $subjects "
+echo "" >> $sumlog
+
+# make aseg look-up table
+if ($MakeAsegLookUp) then
+
+	echo "Making aseg look-up table, $print_means_to_file"
+	set cmd = ($scriptsDir/recon_all_aseg_outlier_checker -s $subjects -sumlog $sumlog -slog $sumlog -printmeanstofile $print_means_to_file)
+	#echo "Running command: $cmd" >> $slog
+	sleep 2
+	$cmd #| tee -a $slog
+	
+	set asegMeansFile = $print_means_to_file
+	echo "Generated asegLUT: $print_means_to_file"
+	
+	echo "-----" #| tee -a $slog
+
+	
+
+endif # if ($MakeAsegLookUp) then
+
+if ($CheckOutputFiles == 1 || $CheckStatusLog == 1 || $CheckAsegOutliers == 1) then
+	foreach s ($subjects)
+     
+   	# set up subject summary and detail logs
+	set slog = $SUBJECTS_DIR/$s/scripts/recon_checker.log		
+
+	echo "" | tee -a $sumlog
+	echo "=== Processing Subject $s ===" | tee -a $sumlog
+	echo "" | tee -a $sumlog
+
+	echo "Writing subject QA log to:" | tee -a $sumlog
+	echo "$slog" | tee -a $sumlog
+
+	echo "-----" | tee -a $slog
+	echo "Running recon_checker on:" | tee -a $slog
+	date | tee -a $slog
+	echo "-----" | tee -a $slog
+
+	if ( ! -e $slog  ) then
+	     echo "ERROR: Log file directory not found." | tee -a $sumlog
+	     echo "Check that SUBJECTS_DIR is properly set" | tee -a $sumlog
+	     echo "$SUBJECTS_DIR/$s/scripts/recon_checker.log" >> $sumlog
+	     exit 1
+	endif
+
+    	# find version(s) of freesurfer used
+	echo "Most recent FreeSurfer version used to process this subject:" | tee -a $slog
+	if (-e $SUBJECTS_DIR/${s}/scripts/recon-all.log) then
+	    	egrep "/recon-all" $SUBJECTS_DIR/${s}/scripts/recon-all.log | tail -n1 | tee -a $slog
+	    else
+	    	echo "$SUBJECTS_DIR/${s}/scripts/recon-all.log doesn't exist..." | tee -a $slog
+	endif 
+
+	echo "-----" | tee -a $slog
+
+	echo "All FreeSurfer versions used to process this subject:" | tee -a $slog
+	if (-e $SUBJECTS_DIR/${s}/scripts/recon-all.log) then
+	    	egrep "/recon-all" $SUBJECTS_DIR/${s}/scripts/recon-all.log | xargs -i csh -c 'echo "`dirname {}`/recon-all"' | uniq | xargs -i csh -c 'echo {};' | tee -a $slog
+	    else
+	    	echo "$SUBJECTS_DIR/${s}/scripts/recon-all.log doesn't exist..."| tee -a $slog
+	endif 
+
+	echo "-----" | tee -a $slog
+
+	# check output files
+	if ($CheckOutputFiles) then
+
+	     echo "Checking all output files exist..." | tee -a $slog
+
+	     set cmd = ($scriptsDir/recon_all_output_file_checker -subjid $s -slog $slog -sumlog $sumlog -outputfileorderfile $output_file_order_file)
+
+	     echo ""
+	     echo "     Running command: $cmd" >> $slog
+	     echo ""
+	     sleep 2
+	     $cmd
+
+	     echo "-----" | tee -a $slog
+
+	endif # if ($CheckOutputFiles) then
+
+	
+
+	# check status log
+	if ($CheckStatusLog) then
+
+	     echo "Checking status log output..." | tee -a $slog
+	     set cmd = ($scriptsDir/recon_all_status_log_checker -subjid $s $checkStatusLogCommand -details -slog $slog -sumlog $sumlog)
+	     echo ""
+	     echo "	Running command: $cmd" >> $slog
+	     echo ""
+	     sleep 2
+	     $cmd
+
+	     echo "-----" | tee -a $slog	
+
+	endif # if ($CheckStatusLog) then 
+
+	
+
+	# check asegs for outliers
+	if ($CheckAsegOutliers) then
+
+	     echo "Checking asegs for outliers..." | tee -a $slog
+	     echo "Using asegLUT: $asegMeansFile" | tee -a $slog
+	     set cmd = ($scriptsDir/recon_all_aseg_outlier_checker -subjid $s -LookupMeansFromFile $asegMeansFile -slog $slog -sumlog $sumlog)
+	     #set cmd_details = ($scriptsDir/recon_all_aseg_outlier_checker -subjid $s -LookupMeansFromFile $asegMeansFile -details)				###!!!!
+	     echo ""
+	     echo "Running command: $cmd" >> $slog
+	     echo ""
+	     sleep 2
+	     $cmd
+	     #$cmd_details | tee -a $slog
+
+   	     echo "-----" | tee -a $slog
+
+	endif # if ($CheckAsegOutliers) then
+
+end # foreach s ($subjects)
+endif
+
+if ($CheckSNR_WM) then
+
+	echo "Checking white matter SNR measurements..."
+	echo "     wm-anat-snr results:" >> $sumlog
+	echo "" | tee -a $sumlog
+	echo "     SNR: Anatomical signal-to-noise ratio in white matter" >> $sumlog
+	echo "     mWM: Mean white matter intensity value" >> $sumlog
+ 	echo "     stdWM: Standard deviation of white matter intensity value" >> $sumlog
+	echo "     voxWM: Total number of white matter voxels in eroded mask" >> $sumlog
+	echo "" >> $sumlog
+	echo "     SubjID	SNR	mWM	stdWM	voxWM" >> $sumlog
+
+
+	foreach subj ($subjects)
+	   	# set up subject summary and detail logs
+		set slog = $SUBJECTS_DIR/$subj/scripts/recon_checker.log		
+
+		echo "Checking white matter SNR measurements..." >> $slog
+		echo "" | tee -a $slog
+		echo "SNR: Anatomical signal-to-noise ratio in white matter" >> $slog
+		echo "mWM: Mean white matter intensity value" >> $slog
+		echo "stdWM: Standard deviation of white matter intensity value" >> $slog
+		echo "voxWM: Total number of white matter voxels in eroded mask" >> $slog
+	
+		set cmd = ($scriptsDir/recon_all_wm-anat-snr_checker -subjid $subj -slog $slog -sumlog $sumlog)
+    	        echo ""
+	    	echo "Running command: $cmd" >> $slog
+	 	echo ""
+	    	sleep 2    		
+		$cmd
+	end
+
+	echo "-----" | tee -a $slog
+
+endif #if ($CheckSNR_WM) then
+
+# make snapshots
+if ($TakeSnapshots) then
+
+	#if ( -e $outputHTMLfile  ) then
+	#     echo "ERROR: snapshots html file already exists." | tee -a $sumlog
+	 #    echo "Making back-up of html file" | tee -a $sumlog
+	#	set timestamp = `stat -c %y $file`
+        #     set outputHTMLfile = (outputHTMLfile 
+	 #    echo "$SUBJECTS_DIR/$s/scripts/recon_checker.log" >> $sumlog
+	 #    exit 1
+	#endif
+
+	echo "Taking snapshots..."
+	#set cmd = ($scriptsDir/jlp_snapshots3_temp -subjid $subjects -o $outputHTMLfile -sumlog $sumlog)  #CHANGE THIS !!!!!!
+	#set cmd = ($scriptsDir/jlp_snapshots3_aseg -subjid $subjects -o $outputHTMLfile -sumlog $sumlog)  #CHANGE THIS !!!!!!
+	#set cmd = ($scriptsDir/jlp_snapshots3_fv_norm -subjid $subjects -o $outputHTMLfile -sumlog $sumlog)  #CHANGE THIS !!!!!!
+	#set cmd = ($scriptsDir/jlp_snapshots3_FHS -subjid $subjects -o $outputHTMLfile -sumlog $sumlog) #CHANGE THIS !!!!!!
+	set cmd = ($scriptsDir/jlp_snapshots3 -subjid $subjects -o $outputHTMLfile -sumlog $sumlog) #ORIGINAL
+		if ( $DetailedSnapshots ) set cmd = ( $cmd -detailed )
+		if ( $OverwriteSnapshots ) set cmd = ( $cmd -overwrite )
+
+	#echo "Running command: $cmd" >> $sumlog
+	echo "" >> $sumlog
+	sleep 2
+	$cmd
+
+endif # if ($TakeSnapshots) then
+
+echo "" >> $sumlog
+
+echo "Summary files for individual subjects:"
+echo "$SUBJECTS_DIR/[SUBJECT_ID]/scripts/recon_checker.log"
+echo " "
+echo "Summary file for ALL subjects:"
+echo "$SUBJECTS_DIR/QA/recon_checker.ALL.summary.log"
+echo " "
+echo "recon_checker FINISHED"
+
+exit 0;
+
+
+
+############--------------##################
+
+parse_args:
+set cmdline = ($argv);
+echo ""
+echo "Parsing flags:"
+while( $#argv != 0 )
+
+  set flag = $argv[1]; shift;
+  
+  echo "     $flag"
+
+  switch($flag)
+
+    case "-s":
+    case "-subjid":
+        if ( $#argv == 0) goto arg1err;
+        set proceed = 1;
+        while ( $#argv != 0 && $proceed )
+            set subjects = ($subjects $argv[1]); shift;
+            if ( $#argv != 0 ) then
+                set proceed = `echo "$argv[1]" | gawk '{ if (substr($1, 1, 1) == "-") {print "0"} else {print "1"} }'`;
+            endif
+        end
+      breaksw
+    
+    case "-set-sd":
+      if ( $#argv == 0) goto arg1err;
+      set scriptsDir = $argv[1]; shift;
+      setenv RECON_CHECKER_SCRIPTS $scriptsDir
+      breaksw
+
+    case "-s-file":
+      if ( $#argv == 0) goto arg1err;
+      set subjects = `cat $argv[1]`; shift;
+      breaksw
+
+    case "-snaps-out":
+      if ( $#argv == 0) goto arg1err;
+      set outputHTMLfile = $argv[1]; shift;
+      breaksw
+
+    case "-outputFOF"
+      if ( $#argv == 0) goto arg1err;
+      set output_file_order_file = $argv[1]; shift;
+      breaksw
+
+    case "-gen-asegLUT"
+      if ( $#argv == 0) goto arg1err;
+      set print_means_to_file = $argv[1]; shift;
+      set MakeAsegLookUp = 1;
+      breaksw 
+
+    case "-gen-outputFOF"
+      set GenerateNewOutputOrderFile = 1;
+      breaksw
+
+   # case "-gen-status"
+    #  set GenerateNewStatusFile = 1;
+    #  breaksw
+
+    case "-snaps-detailed"
+      set DetailedSnapshots = 1;
+      set TakeSnapshots = 1;
+      breaksw
+    
+    case "-snaps-overwrite"
+      set OverwriteSnapshots = 1;
+      breaksw
+
+    case "-help"
+      goto usage_err;
+      breaksw
+
+    case "-asegLUT"
+      if ( $#argv == 0) goto arg1err;
+	set asegMeansFile = $argv[1]; shift;
+	if ( ! -e $asegMeansFile ) then
+		echo "ERROR:aseg look-up table does not exist!!!!" | tee -a $slog | tee -a $sumlog
+		echo "Using default aseg look-up table:"  | tee -a $slog | tee -a $sumlog
+		echo "     $RECON_CHECKER_SCRIPTS/DefaultAsegMeans.txt"  | tee -a $slog | tee -a $sumlog
+		set asegMeansFile = $RECON_CHECKER_SCRIPTS/DefaultAsegMeans.txt
+		echo 
+	endif
+      breaksw
+
+	#?????????? Difference?
+
+    case "-completeStatusFile"
+	if ( $#argv == 0 ) goto arg1err;
+	set infile = $argv[1]; shift;
+	set checkStatusLogCommand = ( $checkStatusLogCommand " -completeStatusFile $infile"); 
+    breaksw
+
+    case "-completeStatusFiles"
+	if ( $#argv == 0 ) goto arg1err;
+	set infile = $argv[1]; shift;
+	set checkStatusLogCommand = ( $checkStatusLogCommand " -completeStatusFiles $infile");
+    breaksw
+
+    # ----
+    # ----
+
+    case "-nocheck-aseg":
+      set CheckAsegOutliers = 0;
+      breaksw
+
+    case "-nocheck-status":
+      set CheckStatusLog = 0;
+      breaksw
+
+    case "-nocheck-SNR-WM":
+      set CheckSNR_WM = 0;
+      breaksw
+
+    case "-nocheck-outputFOF":
+      set CheckOutputFiles = 0;
+      breaksw
+
+    case "-snaps-only":
+      set TakeSnapshots = 1;
+	set CheckStatusLog = 0;
+	set CheckOutputFiles = 0;
+	set CheckAsegOutliers = 0;
+	set CheckSNR_WM = 0;
+      breaksw
+
+    case "-no-snaps":
+      set TakeSnapshots = 0;
+      breaksw
+
+    case "-ignore":
+      if ( $#argv == 0) goto arg1err;       # get all of the processes to ignore
+      set proceed = 1       
+      while ( $#argv != 0 && $proceed )
+        echo "$argv[1]" >> $tmpFile; 
+        shift;
+        if ( $#argv != 0 ) then
+            set proceed = `echo "$argv[1]" | gawk '{ if (substr($1,1,1) == "-") {print "0"} else {print "1"}}'`
+        endif
+      end
+      breaksw
+
+
+    # ----
+
+    default:
+	echo ""
+        echo "ERROR: Flag $flag unrecognized.  See -help for list of proper flags."
+        echo $cmdline
+        exit 1
+    breaksw
+    endsw
+
+end
+goto parse_args_return;
+
+
+
+############--------------##################
+############--------------##################
+check_params:
+    if($#subjects == 0) then
+	echo ""
+        echo "ERROR: Must specify at least one subjid"
+        exit 1;
+    endif
+    if($TakeSnapshots && $#outputHTMLfile == 0) then
+	echo ""
+	echo "ERROR: No HTML file specified for snapshots"
+	echo "Using default HTML file name for snapshots: $SUBJECTS_DIR/QA/QA_check.html"
+	set outputHTMLfile = "$SUBJECTS_DIR/QA/QA_check.html"
+    endif
+    if(! -e $asegMeansFile && $CheckAsegOutliers == 1) then
+	echo ""
+	echo "ERROR: $asegMeansFile does not exist."
+	echo "       Skipping aseg outlier check..."
+	set CheckAsegOutliers = 0;
+    endif
+goto check_params_return;
+############--------------##################
+
+###########--------------##################
+
+##############--------------##################
+##############--------------##################
+arg1err:
+  echo "ERROR: flag $flag requires one argument"
+  exit 1
+##############--------------##################
+##############--------------##################
+
+
+##############--------------##################
+##############--------------##################
+usage_err:
+  echo "USAGE: recon_checker -s <subject1> [<subject2> ...] [options]"
+  echo "Required flags: -s"
+  echo " "
+  echo "By default QA-Tools will check the status log, the order files were created, the aseg for any outliers,"
+  echo "create snapshots, and calculate SNR and WM measures.  See the flags below if you want to disable one or"
+  echo "more of these options."
+  echo " "
+  echo "Options: "
+  echo " "
+  echo "  -s <subject1> [<subject2> ...]"
+  echo "  -subjid <subject1> [<subject2> ...] : Specify subject(s) to process"
+  echo " "
+  echo "  -s-file <subject file> : Specify a file with a list of subjects. May be used "
+  echo "			   instead of -s or -subjid to specify subjects."
+  echo " "
+  echo "  -snaps-out : Specify desired full path and name of HTML output file displaying snapshot images."
+  echo "               If not specified, default HTML file name is used (../QA/QA_check.html)."
+  echo " "
+  echo "  -snaps-detailed : Take a more detailed set of snapshots"
+  echo " "
+  echo "  -snaps-overwrite : Take all snapshots, even if there are previously taken ones."
+  echo " " 
+  echo "  -no-snaps : Do not take snapshots"
+  echo " "
+  echo "  -snaps-only : Only take snapshots; do not check aseg outliers, status file, or"
+  echo "                order of file creation"
+  echo " "   
+  echo "  -outputFOF <file order list> : Specify a file which lists the "
+  echo "			         proper order of the output files."
+  echo " "
+  echo "  -asegLUT <file> : Specify file containing aseg outlier lookup table"
+  echo " "
+  echo "  -gen-outputFOF : Generate the file order list from the first subject."
+  echo " "
+  #echo "  -gen-status : Generate the status file from the first subject."
+  #echo " "
+  echo "  -gen-asegLUT <file> : Generate an Aseg LookUp table called <file> from"
+  echo "                        your subjects that can be used to identify aseg outliers."
+  echo " "
+  echo "  -nocheck-aseg : Do not check for aseg outliers"
+  echo " "
+  echo "  -nocheck-status : Do not check status log file for each subject"
+  echo " "
+  echo "  -nocheck-outputFOF : Do not check output order of files for each subject"
+  echo " "
+  echo "  -nocheck-SNR-WM : Do not calculate SNR and WM measures for each subject"
+  echo " "
+  echo "  -completeStatusFile <file>: Compares each subject's status log file"
+  echo "                              to the input file"
+  echo " "
+  echo "  -completeStatusFiles <file>: Compares each subject's status log "
+  echo "                               file to each of the complete status"
+  echo "                               log files listed in <file>"
+  echo " "
+  echo "  -ignore <process1> [<process2> ...] : Specify one or more FreeSurfer processes"
+  echo "  					to ignore while checking status files."
+	 						#--provide list			
+ #echo " "
+ #echo " "
+ #echo "    EXAMPLE "
+  exit 1
+##############--------------##################
+##############--------------##################
+

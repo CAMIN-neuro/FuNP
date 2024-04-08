@@ -1,0 +1,232 @@
+#!/bin/csh -ef
+# original by Vasanth Pappu
+
+set subjects = ();
+set Details = 0;
+set PrintMeansToFile = 0;
+set LookupMeansFromFile = 0;
+set MeanFile = ();
+set LookupMeanFile = ();
+set slog = ();
+set sumlog = ();
+
+
+# for debugging
+set Details2 = 0;
+
+echo "parsing arguments ..."
+goto parse_args;
+parse_args_return:
+
+echo "checking parameters ..."
+goto check_params;
+check_params_return:
+echo "done checking parameters ..."
+
+if ($Details2) echo "checked parameters"
+# ---
+
+# moving previous log files to *.bak
+echo "moving previous log files to *.bak"
+foreach s ($subjects)
+    if (-e $SUBJECTS_DIR/$s/stats/aseg_outliers.log) mv $SUBJECTS_DIR/$s/stats/aseg_outliers.log $SUBJECTS_DIR/$s/stats/aseg_outliers.log.bak
+end
+echo "done moving previous log files"
+
+if ($Details2) echo "SUBJECTS_DIR is $SUBJECTS_DIR " 
+if ($Details) sleep 2;
+
+if ($Details2) echo "entering foreach loop for each subcortical label ..."
+echo "Processing each subcortical label ..."
+set segsfile = $RECON_CHECKER_SCRIPTS/segsfile2
+
+foreach subcortlabel (`cat $segsfile`)
+
+# get mean and std
+if ($LookupMeansFromFile) then
+    set cmd = ($RECON_CHECKER_SCRIPTS/gparcmean_from_table \
+        -statsfilepath $LookupMeanFile \
+        -segs $subcortlabel)
+    if ($Details2) echo "LookupMeansFromFile COMMAND:::::    $cmd"
+    set meanANDstd = `$cmd` 
+    set mean = `echo $meanANDstd | gawk '{print $1}'`
+    set std = `echo $meanANDstd | gawk '{print $3}'`
+
+else
+    set cmd = ($RECON_CHECKER_SCRIPTS/gparcmeannorm \
+	-s $subjects \
+	-statsfilepath stats/aseg.stats \
+	-segs $subcortlabel)
+    if ($Details2) echo "$cmd"
+    set meanANDstd = `$cmd`
+    # TO DO: MAKE SURE MEAN AND STD AREN'T OF THE FORM <some_number>e<some_number>
+    set mean = `echo $meanANDstd | gawk '{print $1}'`
+    set std = `echo $meanANDstd | gawk '{print $3}'`
+	
+endif 
+
+if ($Details) echo "checking subcortical label: $subcortlabel, $meanANDstd" 
+echo "checking subcortical label: $subcortlabel, $meanANDstd" |tee -a $slog > /dev/null
+#echo "checking subcortical label: $subcortlabel, $meanANDstd"
+
+if ($PrintMeansToFile) then
+    echo "$subcortlabel $meanANDstd" >> $MeanFile
+endif # if ($PrintMeansToFile) then
+
+if ($Details2) echo "checking subject's aseg values against the means ..."
+foreach s ($subjects)
+
+    set cmd = ($RECON_CHECKER_SCRIPTS/gparcvalnorm \
+	-s $s \
+	-statsfilepath stats/aseg.stats \
+	-segs $subcortlabel)
+    set parcval = `$cmd`
+
+    #check to see if parcval for each subject lies within outlier range of mean (2 stds from mean)
+
+    set lowerlimit = `echo "if ($parcval < ($mean - 2*$std)) 1" | bc`
+    set upperlimit = `echo "if ($parcval > ($mean + 2*$std)) 1" | bc`
+    if ($lowerlimit == 1 || $upperlimit == 1) then
+	echo "        ${s} $subcortlabel value $parcval is an outlier ..." >> $SUBJECTS_DIR/$s/stats/aseg_outliers.log 
+	if ($Details) echo "	${s} $subcortlabel value $parcval is an outlier (avg = $meanANDstd)..." 
+	echo "	${s} $subcortlabel value $parcval is an outlier (avg = $meanANDstd)..." |tee -a $slog > /dev/null
+    endif
+
+end # foreach s ($subjects)
+end # foreach subcortlabel (`cat $segsfile`)
+
+
+report_n_outliers:
+# report number of outliers for each subject
+foreach s ($subjects)
+    if ($Details2) echo "$s ..."
+    if (-e $SUBJECTS_DIR/$s/stats/aseg_outliers.log) then
+	set n_outliers = `cat $SUBJECTS_DIR/$s/stats/aseg_outliers.log | wc -l`
+    else
+	set n_outliers = 0;
+    endif
+    echo "${s} has $n_outliers outliers ..." |tee -a $slog | tee -a $sumlog
+end
+
+
+
+
+exit 0;
+
+
+############--------------##################
+parse_args:
+set cmdline = ($argv);
+while( $#argv != 0 )
+
+  set flag = $argv[1]; shift;
+
+  switch($flag)
+
+    case "-s":
+    case "-subjid":
+        if ( $#argv == 0) goto arg1err;
+        set proceed = 1;
+        while ( $#argv != 0 && $proceed )
+            set subjects = ($subjects $argv[1]); shift;
+            if ( $#argv != 0 ) then
+                set proceed = `echo "$argv[1]" | gawk '{ if (substr($1, 1, 1) == "-") {print "0"} else {print "1"} }'`;
+            endif
+        end
+      breaksw
+
+    case "-sf":
+      if ( $#argv == 0) goto arg1err;
+      set subjects = `cat $argv[1]`; shift;
+      breaksw
+
+    case "-details":
+      set Details = 1;
+      breaksw
+
+    case "-summary":
+      set Details = 0;
+      breaksw
+
+    case "-reportonly":
+      goto report_n_outliers;
+      breaksw
+
+    case "-PrintMeansToFile":
+    case "-printmeanstofile":
+	if ( $#argv == 0) goto arg1err;
+	set MeanFile = $argv[1]; shift;
+	set PrintMeansToFile = 1;
+      breaksw
+
+    case "-LookupMeansFromFile":
+	if ( $#argv == 0) goto arg1err;
+	set LookupMeanFile = $argv[1]; shift;
+	set LookupMeansFromFile = 1;
+      breaksw
+
+    case "-slf":
+    case "-slog":
+      set slog = $argv[1]; shift;
+      breaksw
+
+    case "-sumlog":
+      set sumlog = $argv[1]; shift;
+      breaksw
+
+
+    # ----
+
+    default:
+        echo ERROR: Flag $flag unlegal.
+        echo $cmdline
+        exit 1
+    breaksw
+    endsw
+
+end
+goto parse_args_return;
+
+
+
+############--------------##################
+############--------------##################
+check_params:
+
+    if($#subjects == 0) then
+        echo "USAGE ERROR: must specify a subjid"
+        exit 1;
+    endif
+
+    if ($PrintMeansToFile) then
+	echo "MeanFile is $MeanFile"
+	if (-e $MeanFile) then
+	    mv $MeanFile ${MeanFile}.bak
+	    echo "mv $MeanFile ${MeanFile}.bak"
+	endif 
+    endif
+
+
+    echo "checking logs ..."
+    if ($#slog == 0) then
+	set slog = /tmp/recon_all_aseg_outlier_checker.$$.slog
+        if ($Details) echo "no summary log file specified; writing to $slog"
+    endif
+
+    echo "done checking logs ..."
+
+
+goto check_params_return;
+############--------------##################
+
+
+##############--------------##################
+##############--------------##################
+arg1err:
+  echo "ERROR: flag $flag requires one argument"
+  exit 1
+##############--------------##################
+##############--------------##################
+
+
+

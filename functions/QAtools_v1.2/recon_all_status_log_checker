@@ -1,0 +1,579 @@
+#!/bin/tcsh -f 
+# ORIGINAL BY: Stephanie Lee
+# MODIFIED BY: David Koh, 8/10/06
+# MODIFIED BY: Stephanie Lee, 11/13/2006. Added flag for user to specify a 
+#              different complete status log file to check against. Also
+#              allowing the user to specify more than one complete status log
+#              file to check against.
+# PURPOSE: checks the recon-all-status.log file
+# ARGUMENTS: 1) -subjids <SUBJID1> <SUBJID2> ...
+#               subject identifiers to look up
+#            2) -subjectsList <FILE_PATH>
+#               a file specifying the subject identifiers to look up
+#            3) -statusFiles <LOG_PATH1> <LOG_PATH2> <LOG_PATH3> ...
+#               list of log files to check
+#            4) -statusFilesList <FILE_PATH>
+#               a file specifying the log files (by path) to check
+#            5) -details
+#               an optional flag.  If not used, a summary will be output.  If used
+#               then more details (for example, missing recon steps, etc) will also
+#               be output)
+#            6) -ignore "<PROCESS1>" "<PROCESS2>" ...
+#               an optional flag with which you can specify recon processes to ignore.
+#               For example -ignore "MotionCor" will cause any problems having to do with
+#               MotionCor to be ignored.
+# USAGE: You must specify the subjects or log files to check using one of the following
+#        flags:
+#            1) -subjid
+#            2) -subjectsList
+#            3) -statusFiles
+#            4) -statusFilesList
+#        EXAMPLE 1: recon_all_status_log_checker -subjids AAAA12_nrecon BBBB34_nrecon
+#        EXAMPLE 2: recon_all_status_log_checker -statusFiles LAWT60_nrecon/scripts/recon-all-status.log
+
+# VARIABLES
+# The subject (for example, LAWT60_nrecon)
+set subjectIds = ();
+# The recon-all-status.log file to check
+set statusFiles = ();
+# A complete recon-all-status.log file (to check the above against)
+set completeStatusFile = $RECON_CHECKER_SCRIPTS/default_status_log_FSv5.1.log;
+#set completeStatusFile = $RECON_CHECKER_SCRIPTS/sample-recon-all-status.log;
+set completeStatusFiles = ( $completeStatusFile )
+# The subjects directory
+set subjectsDirectory = $SUBJECTS_DIR; 
+# Flag to determine whether to output a summary or detailed description
+set details = 0;
+# Recon process to ignore
+set procToIgnore = ();
+# The number of processes that should be ignored
+set numToIgnore = 0;
+# Tmp file with processes to ignore
+set tmpFile = $SUBJECTS_DIR/QA/recon_checker.tmp 
+# If some other program (recon_checker, for example) created the temp file, we shouldn't delete it
+set createdTmpFile = 0
+set skippedLHProcs = 0;
+set executedLHProcs = 1;
+set skippedRHProcs = 0;
+set executedRHProcs = 1;
+# Logs
+set slog = ();
+set sumlog = ();
+
+#echo "\nIn recon_all_status_log_checker\n" 
+
+# CHECK COMMAND LINE ARGS
+set commandLine = ($argv);
+while ( $#argv != 0 ) 
+
+    set flag = $argv[1]; shift;
+
+    switch ($flag)
+	# subject identifier flag
+	case "-subjids":
+	case "-subjid":
+	    if ($#argv == 0) then
+		echo "ERROR: $flag requires a subject ID." | tee -a $slog | tee -a $sumlog
+		echo "Exiting." | tee -a $slog | tee -a $sumlog
+		echo "" | tee -a $slog | tee -a $sumlog
+		exit 1
+	    endif
+
+	    # get all the subject identifiers 
+	    # (the following code is from Vasanth's status_update script)
+	    set proceed = 1;
+	    while( $#argv != 0 && $proceed)
+		set subjectIds = ($subjectIds $argv[1]); shift; 
+		if( $#argv != 0) then
+		    set proceed = `echo "$argv[1]" | gawk '{ if (substr($1,1,1) == "-") {print "0"} else {print "1"}}'`;
+		endif
+	    end
+	breaksw
+
+	# subjects file flag
+	case "-subjectsList":
+	    if ($#argv == 0) then
+		echo "ERROR: $flag requires a file containing a list of subject IDs." | tee -a $slog | tee -a $sumlog
+		echo "Exiting." | tee -a $slog | tee -a $sumlog
+		echo "" | tee -a $slog | tee -a $sumlog
+		exit 1
+	    endif
+
+	    # make sure the file exists
+	    if (! -e $argv[1] ) then
+		echo "ERROR: The input file $argv[1] does not exist." | tee -a $slog | tee -a $sumlog
+		echo "Exiting." | tee -a $slog | tee -a $sumlog
+		echo "" | tee -a $slog | tee -a $sumlog
+		exit 1
+	    endif
+
+	    # get all the subject identifiers
+	    set subjectIds = `cat $argv[1]`; shift;
+    
+	breaksw
+
+   	 case "-slog":
+    		 set slog = $argv[1]; shift;
+      	breaksw
+
+   	 case "-sumlog":
+    		set sumlog = $argv[1]; shift;
+    	breaksw
+
+	# check against more than one complete status log file
+	case "-completeStatusFiles":
+	    if ($#argv == 0) then
+		echo "ERROR: $flag requires a path to a file containing a list" | tee -a $slog | tee -a $sumlog
+		echo "of status log files to check against."| tee -a $slog | tee -a $sumlog
+		echo "Exiting." | tee -a $slog | tee -a $sumlog
+		echo "" | tee -a $slog | tee -a $sumlog
+		exit 1;
+	    endif
+	    set infile = $argv[1]; shift;
+	    if ( ! -e $infile ) then
+		echo "ERROR: $completeStatusFiles does not exist. Please enter" | tee -a $slog | tee -a $sumlog
+		echo "a different path."| tee -a $slog | tee -a $sumlog
+		echo "Exiting." | tee -a $slog |  tee -a $sumlog
+		echo "" | tee -a $slog | tee -a $sumlog
+		exit 1;
+	    else
+		set completeStatusFiles = `cat $infile`; 
+	    endif
+	breaksw
+
+	# use a different complete status log file
+	case "-completeStatusFile":
+	    if ($#argv == 0) then
+		echo "ERROR: $flag requires a path to a complete status log file" | tee -a $slog | tee -a $sumlog
+		echo "Exiting." | tee -a $slog | tee -a $sumlog
+		echo "" | tee -a $slog | tee -a $sumlog
+		exit 1;
+	    endif
+	    set completeStatusFile = $argv[1]; shift;
+	    set completeStatusFiles = ( $completeStatusFile )
+	    echo "Setting complete status file to $completeStatusFile" | tee -a $slog | tee -a $sumlog
+	    if ( ! -e $completeStatusFile ) then
+		echo "ERROR: input status log file $completeStatusFile" | tee -a $slog | tee -a $sumlog
+		echo "does not exist. Please enter a different path." | tee -a $slog | tee -a $sumlog
+		echo "Exiting." | tee -a $slog | tee -a $sumlog
+		echo "" | tee -a $slog | tee -a $sumlog
+		exit 1;
+	    endif
+	breaksw
+
+	# recon-all-status.log file
+	case "-statusFiles":
+	    
+	    # make sure there's an argument
+	    if ($#argv == 0) then
+		echo "ERROR: $flag flag requires a path to the recon-all-status.log file." | tee -a $slog | tee -a $sumlog
+		echo "Exiting." | tee -a $slog | tee -a $sumlog
+		echo "" | tee -a $slog | tee -a $sumlog
+		exit 1
+	    endif
+
+	    # get all of the status files
+	    set proceed = 1;
+	    while ( $#argv != 0 && $proceed )
+		set statusFiles = ($statusFiles $argv[1]); shift;
+		if ( $#argv != 0 ) then
+		    set proceed = `echo "$argv[1]" | gawk '{ if (substr($1,1,1) == "-") {print "0"} else {print "1"}}'`;
+		endif
+	    end
+	
+	breaksw
+
+	# recon-all-status.log files input as a text file
+	case "-statusFilesList":
+    
+	    # make sure there's an arugment
+	    if ($#argv == 0) then
+		echo "ERROR: $flag flag requires a path to a file containing a list of " | tee -a $slog | tee -a $sumlog
+		echo "log files." | tee -a $slog | tee -a $sumlog
+		echo "Exiting." | tee -a $slog | tee -a $sumlog
+		echo "" | tee -a $slog | tee -a $sumlog
+		exit 1
+	    endif	    
+
+	    # get all of the status files
+	    if (! -e $argv[1] ) then
+		echo "ERROR: The input file $argv[1] does not exist." | tee -a $slog | tee -a $sumlog
+		echo "Exiting."  | tee -a $slog | tee -a $sumlog
+		echo "" | tee -a $slog | tee -a $sumlog
+		exit 1
+	    endif
+
+	    # get all the log files
+	    set statusFiles = `cat $argv[1]`; shift; 
+
+	breaksw
+
+	# details flag
+	case "-details":
+	    set details = 1;
+	breaksw
+
+	# recon processes that should be ignored
+	case "-ignore":
+	    # make sure there's an argument
+	    if ($#argv == 0) then
+		echo "ERROR: $flag flag requires at least one argument specifying" | tee -a $slog | tee -a $sumlog
+		echo "the recon step(s) that should be ignored in this check" | tee -a $slog | tee -a $sumlog
+		echo "Exiting." | tee -a $slog | tee -a $sumlog
+		echo "" | tee -a $slog | tee -a $sumlog
+		exit 1
+	    endif
+	   
+	    # may need to clean up from a previous run
+	    if ( -e $tmpFile ) then
+		rm $tmpFile
+	    endif
+
+	    @ createdTmpFile = 1
+ 
+	    # get all of the processes to ignore
+	    set proceed = 1
+	    while ( $#argv != 0 && $proceed )
+		echo "$argv[1]" >> $tmpFile; shift;
+		if ( $#argv != 0 ) then
+		    set proceed = `echo "$argv[1]" | gawk '{ if (substr($1,1,1) == "-") {print "0"} else {print "1"}}'`
+		endif
+	    end
+
+	breaksw
+
+	# unrecognized flag
+	default:
+	    echo "ERROR: Flag $flag unrecognized. Ignoring this flag..." | tee -a $slog | tee -a $sumlog
+	    echo "" | tee -a $slog | tee -a $sumlog
+	breaksw
+    endsw # end of the switch statement
+
+end # end while loop
+
+# MAKE SURE WE HAVE ALL THE INFO WE NEED
+# If the recon-all-status.log path was not input as an argument, set the path
+# based on the input subject identifier
+if ($#statusFiles == 0) then
+ 
+    # If the subject ID was also not input, then we can't do anything
+    if ($#subjectIds == 0) then
+	echo "recon_all_status_log_checker information:"
+	echo "PURPOSE: Checks recon-all-status.log file(s)"
+	echo "ARGUMENTS: 1) -subjids <SUBJID1> <SUBJID2> ..."
+	echo "              Subject identifiers to look up"
+	echo "           2) -subjectsList <FILE_PATH>"
+	echo "              A file specifying the subject identifiers to look up"
+	echo "           3) -statusFiles <LOG_PATH1> <LOG_PATH2> <LOG_PATH3> ..."
+	echo "              List of log files to check"
+	echo "           4) -statusFilesList <FILE_PATH>"
+	echo "              A file specifying the log files (by path) to check"
+	echo "           5) -details"
+	echo "              An optional flag.  If not used, a summary will"
+	echo "              be output.  If used, then more details (for example,"
+	echo "              missing recon steps, etc) will also be output."
+	echo '           6) -ignore "<PROCESS1>" "<PROCESS2>" ...'
+	echo "               an optional flag with which you can specify recon "
+	echo '               processes to ignore. For example -ignore "MotionCor"'
+	echo "               will cause any problems having to do with MotionCor"
+	echo "               to be ignored."
+	echo "           7) -completeStatusFile <FILE_PATH>"
+	echo "              Flag to specify a different complete status file "
+	echo "              log to check against."
+	echo "           8) -completeStatusFiles <FILE_PATH>"
+	echo "              Flag to specify a list of different complete status"
+	echo "              file logs to check against. The list should "
+	echo "              contain filepaths to all status logs to check "
+	echo "              against."
+	echo "USAGE: You must specify the subjects or log files to check using"
+	echo "       one of the following flags:"
+	echo "       1) -subjid       2) -subjectsList  "
+	echo "       3) -statusFiles  4) -statusFilesList"
+	echo "EXAMPLE 1: recon_all_status_log_checker -subjids AAAA12_nrecon"
+	echo "EXAMPLE 2: recon_all_status_log_checker -statusFiles ./recon-all-status.log"
+	echo ""
+	exit 1;
+    endif
+
+    # go through all subjects and find their recon-all-status.log files
+    foreach s ( $subjectIds )
+	set statusFiles = ($statusFiles $subjectsDirectory/$s/scripts/recon-all-status.log)
+    end
+
+endif
+
+#-----------------------------------------------------------------------------------------
+
+# go through each status file and check it
+foreach subjectNumber (`seq 1 $#statusFiles`)
+
+    # get the correct recon-all-status.log file
+    set statusFile = $statusFiles[$subjectNumber]
+    
+    # the fields we will output
+    set id = ()
+    set reconStatus = ()
+    set reconDetails = () 
+
+    if ($#subjectIds != 0) then
+	set id = $subjectIds[$subjectNumber]
+    else
+	set id = $statusFile
+    endif
+
+    # Make sure the $SUBJECTS_DIR/SUBJECT/scripts/recon-all-status.log file
+    # exists
+    if (! -e $statusFile ) then
+	echo "ERROR: $statusFile does not exist." | tee -a $slog | tee -a $sumlog
+        echo "Ignoring this file." | tee -a $slog | tee -a $slog | tee -a $sumlog
+	echo "" | tee -a $slog | tee -a $sumlog
+	
+	# go onto the next log file
+	continue	
+    endif
+
+    foreach completeStatusFile ( $completeStatusFiles )
+
+    # Make sure the complete status log file exists
+    if ( ! -e $completeStatusFile ) then
+	echo "WARNING: $completeStatusFile does not exist. Skipping this " | tee -a $slog | tee -a $sumlog
+	echo "complete status log file..." | tee -a $slog | tee -a $sumlog
+	continue;
+    else
+	echo "Using status log: $completeStatusFile" | tee -a $slog
+	echo "" | tee -a $slog
+    endif
+
+    # Get the number of lines in each log file
+    set numLinesInCheckFile = `cat $statusFile | wc -l`
+    set numLinesInGoodFile = `cat $completeStatusFile | wc -l`
+
+    # j is the line number in the good log file
+    set j = 1
+    # i is the line number in the log file we're checking
+    set i = 1
+
+    # Loop through all the lines of the log file we are checking
+    while ($i <= $numLinesInCheckFile)
+
+	set line = `sed -n ${i}p $statusFile`
+
+	# We are interested in the lines beginning with "#@#"
+	set check = `echo $line | awk '{print index($0, "#@#")}'`
+	if ($check == 0) then
+	    @ i = $i + 1
+	    continue
+	endif
+
+	set expectedLine = `sed -n ${j}p $completeStatusFile`
+
+        # Compare the line in the input log file with the expected process
+        # logged in the good status.log file
+        set check = `echo $line | awk '{print index($0,"'"$expectedLine"'")}'`
+	
+        # We found the process we expected to find
+        if ($check != 0) then
+
+	    # if the WM segmentation has already been done, and is subsequently skipped, then the
+	    # user probably made wm edits and ran -autorecon2-wm, in which case, the step order
+	    # in the status log will go from Mask BFS to Fill
+	    # Add the WM segmentation to the tmp file so we can ignore it if it's skipped later on
+	    set wmSegLine = "WM Segmentation";
+	    set check = `echo $line | awk '{print index($0, "'"$wmSegLine"'")}'`
+	    if ($check != 0) then
+		echo $wmSegLine >> $tmpFile;	
+	    endif
+
+	    # Move on in the sample log file
+	    # (Need to make sure we don't go out of bounds)
+	    if ($j < $numLinesInGoodFile) then
+		@ j = $j + 1
+	    endif
+	    
+	# We didn't find the process we expected to find
+	else
+
+	    set ignoreProcess = 0
+    
+	    if ( -e $tmpFile ) then
+		set numToIgnore = `cat $tmpFile | wc -l`
+	    endif
+
+	    # are we supposed to ignore this process?
+	    if ( $numToIgnore != 0 ) then
+		foreach index (`seq 1 $numToIgnore`)
+		    set procToIgnore = `sed -n ${index}p $tmpFile`
+		    set ignoreProcess = `echo $expectedLine | awk '{print index($0, "'"$procToIgnore"'")}'`
+		    if ($ignoreProcess != 0) then
+			# we're supposed to ignore this process, so don't bother checking
+			# the rest of the -ignore arguments
+			break
+		    endif
+		end 
+
+		# move on in the sample log file if we're supposed to ignore this proc
+		if ( $ignoreProcess != 0 ) then
+		    @ j = $j + 1
+		    continue
+		endif
+	    endif
+
+	    # did the user skip ahead a few steps?
+	    # (this loop will look ahead in the sample log file)
+	    foreach k (`seq $j $numLinesInGoodFile`)
+
+		set nextLine = `sed -n ${k}p $completeStatusFile`
+		set check = `echo $line | awk '{print index($0,"'"$nextLine"'")}'`
+
+		# it appears that the user skipped ahead a few steps
+		if ($check != 0) then
+
+		    # detailed output
+		    set reconDetails = "\n "
+		    set reconDetails = ($reconDetails "\nExpected to see the following step(s): ")
+		    set reconDetails = ($reconDetails "\n$line")
+		    set reconDetails = ($reconDetails "\nin the recon-all-status.log file ")
+		    set reconDetails = ($reconDetails "before (line # $i):")
+
+		    @ k = $k - 1
+		    set skippedRHProcs = 1
+		    set skippedLHProcs = 1
+		    set executedRHProcs = 1
+		    set executedLHProcs = 1		   
+ 
+		    # see which steps might have been skipped
+		    foreach l (`seq $j $k`)
+		        set line = `sed -n ${l}p $completeStatusFile`
+			# is this a RH process?
+			set check = `echo $line | awk '{print index($0, "rh")}'`
+			# if this is not a RH process
+			if ( $check == 0 ) then
+			    set skippedRHProcs = 0
+			else
+			    set check = `grep "$line" $statusFile | wc -l`
+			    if ( $check == 0 ) then
+				set executedRHProcs = 0
+			    endif
+			endif
+			# is this a LH process?
+			set check = `echo $line | awk '{print index($0, "lh")}'`
+			# if this is not a LH process
+			if ( $check == 0 ) then
+			    set skippedLHProcs = 0
+			else
+			    set check = `grep "$line" $statusFile | wc -l`
+			    if ( $check == 0 ) then
+				set executedLHProcs = 0
+			    endif
+			endif
+		        set reconDetails = ($reconDetails "\n--> $line")
+		    end
+
+		    # flag indicating whether or not the user corrected this problem 
+		    # (ie the user went back and executed the skipped steps)
+		    set corrected = 0;
+
+		    # go through the remaining lines in the input log file
+		    foreach l (`seq $i $numLinesInCheckFile`)
+		        set line = `sed -n ${l}p $statusFile`
+		        set check = `echo $line | awk '{print index($0,"'"$expectedLine"'")}'`
+		        if ($check != 0) then
+			    # decrement because $i gets incremented at the bottom of the 
+			    # loop
+			    @ i = $l - 1
+			    # we found the missing step
+			    set corrected = 1
+			endif
+		    end
+
+		    if ( $corrected == 1) then
+			# since the user went back and corrected this, let's not output
+			# this extra information
+			set reconDetails = ()
+			set reconStatus = ()
+		    else
+			# if all the processes are LH or RH, then perhaps the user had
+			# executed the processes previously, edited one hemisphere,
+			# and then only re-processed that hemisphere
+			if ( $skippedLHProcs == 1 ) then
+			    set reconDetails = ($reconDetails "\nHowever, these LH processes were executed previously.\nPerhaps the RH output was modified and re-run without re-running the LH processes.")
+			else if ( $skippedRHProcs == 1 ) then
+			    set reconDetails = ($reconDetails "\nHowever, these RH processes were executed previously.\nPerhaps the LH output was modified and re-run without re-running the RH processes.")
+			endif
+
+			set reconStatus = "STEPS_MISSING"
+
+			if ( $details == 0 ) then
+			    echo "ERROR: Recon-all steps missing in subject $id status file" | tee -a $slog | tee -a $sumlog
+			else
+			    echo "ERROR: Recon-all steps missing in subject $id status file" | tee -a $slog | tee -a $sumlog
+			    echo "$reconDetails" | tee -a $slog
+			endif
+			echo ""
+			# the recon log is missing something
+			# break out of the for loop that looks ahead in the sample
+			# log file
+			break
+		    endif
+
+		endif
+	    end # end for each of the remaining lines in the sample log file
+
+	    if ( $reconStatus == "STEPS_MISSING" ) then
+		# if steps are missing, we're done 
+		break
+	    endif
+
+	    # perhaps the user went back to a previous step in the pipeline
+	    # (this loop will look back in the sample log file)
+	    foreach k (`seq 1 $j`)
+		set previousLine = `sed -n ${k}p $completeStatusFile`
+		set check = `echo $line | awk '{print index($0, "'"$previousLine"'")}'`
+		# The user went back to a previous step in the pipeline
+		if ($check != 0) then
+		    @ j = $k + 1
+		endif
+	    end
+
+	endif
+
+	@ i = $i + 1
+
+    end # end for loop (for each line of the log file we are checking)
+
+    if ( $reconStatus != "STEPS_MISSING" ) then
+
+    # the recon process may not have been finished
+    if ($j < $numLinesInGoodFile) then
+	set reconStatus = "INCOMPLETE"
+	set reconDetails = "\nThe following recon steps should be executed:"
+	foreach k (`seq $j $numLinesInGoodFile`)
+	    set line = `sed -n ${k}p $completeStatusFile`
+	    set reconDetails = ($reconDetails "\n--> $line")
+	end
+    else 
+	# no errors were found in the log file
+	set reconStatus = "COMPLETE"    
+    endif
+
+    # print out the results
+    if ($details == 0) then
+	echo "$id $reconStatus" | tee -a $slog | tee -a $sumlog
+    else
+	echo "$id $reconStatus $reconDetails" | tee -a $slog
+    endif
+    echo ""
+
+    endif
+
+    set reconStatus = ();
+    set reconDetails = ();
+    
+    end 
+
+end # end foreach statusFile
+
+# remove the temporary file
+if ( (-e $tmpFile) && ($createdTmpFile == 1) ) then
+    rm $tmpFile
+endif

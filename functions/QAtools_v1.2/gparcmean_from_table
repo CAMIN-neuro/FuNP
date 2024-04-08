@@ -1,0 +1,162 @@
+#!/bin/tcsh -f
+# original BY Vasanth Pappu
+set Debug = 0;
+
+set segmentations = ();
+set statsfilepath = ();
+
+# ----------------------
+if ($#argv == 0) goto usage_err;
+
+goto parse_args;
+parse_args_return:
+
+goto check_params;
+check_params_return:
+# ----------------------
+
+
+
+
+
+
+
+##***********ENTER YOUR VARIABLES***********##
+
+if ($Debug) then 
+    echo ""
+    echo "segmentations are $segmentations"
+    echo ""
+    echo "statsfilepath is $statsfilepath"
+    echo ""
+endif # if ($Debug) then
+
+
+
+### START FOREACH SEGNAME
+foreach name ($segmentations)
+
+    ###############################################
+    # check to see if name exists
+    set matchline = `cat $statsfilepath | egrep -c -w "[^,[:space:],-]*${name}[[:space:],-]*"`
+    if ($matchline == 0) then
+	set namevol = ". +/- ."
+    else if ($matchline == 1) then
+	set namevol = (`cat $statsfilepath | egrep -w "[^,[:space:],-]*${name}[[:space:],-]*" | gawk '{print $2" "$3" "$4}'`)
+    else
+	echo "$matchline matches found for name $name... exiting ..."
+	exit;
+    endif
+					    
+    echo "$namevol" 
+
+
+end
+
+exit 0;
+
+############--------------##################
+parse_args:
+set cmdline = ($argv);
+while( $#argv != 0 )
+
+  set flag = $argv[1]; shift;
+
+  switch($flag)
+
+    case "-lf":
+    case "-log":
+      set log = $argv[1]; shift;
+      breaksw
+
+    case "-statsfilepath":
+      set statsfilepath = $argv[1]; shift;
+      breaksw
+
+    case "-clobber":
+        set clobber = 1;
+      breaksw
+
+    case "-segs":
+    case "-segmentations":
+	if ( $#argv == 0) goto arg1err;
+        set proceed = 1;
+        while ( $#argv != 0 && $proceed )
+            set segmentations = ($segmentations $argv[1]); shift;
+            if ( $#argv != 0 ) then
+                set proceed = `echo "$argv[1]" | gawk '{ if (substr($1, 1, 1) == "-") {print "0"} else {print "1"} }'`;
+            endif
+        end
+        #echo "$segmentations"
+        #echo ""
+    breaksw
+
+    case "-segsf":
+    case "-segsfile":
+      if ( $#argv == 0) goto arg1err;
+      set segmentations = `cat $argv[1]`; shift;
+      breaksw
+
+    default:
+        echo ERROR: Flag $flag unlegal.
+        echo $cmdline
+        exit 1
+    breaksw
+    endsw
+
+end
+goto parse_args_return;
+############--------------##################
+
+
+############--------------##################
+check_params:
+    if($#segmentations == 0) then
+        echo "ERROR: must specify a segmentation name (ex. Left-Hippocampus)"
+	echo "exactly as it appears in the aseg.stats file"
+	echo "use flag -segmentations"
+	echo ""
+        exit 1;
+    endif
+
+    if($#statsfilepath == 0) then
+        echo "ERROR: must specify a stats file path"
+	echo "give the path from SUBSDIR/SUBJID/<path/to/stats/file>"
+	echo "use the flag -statsfilepath"
+	echo "example path:"
+	echo "-statsfilepath stats/aseg.stats"
+        exit 1;
+    endif
+
+goto check_params_return;
+############--------------##################
+
+############--------------##################
+arg1err:
+  echo "ERROR: flag $flag requires one argument"
+  exit 1
+############--------------##################
+
+############--------------##################
+usage_err:
+  echo "gparcmean_from_table"
+    echo "looks up mean of a segmentation from a table"
+echo "USAGE:"
+echo ""
+  echo "-segs -segmentations <list of segmentations on which to report values>"
+  echo "-segsf -segsfile <file which has list of segmentations>"
+  echo "-statsfilepath <path of file where stats are; starts from SUBSDIR/SUB/>"
+  echo ""
+  echo ""
+  echo "example:"
+  echo ""
+  echo "gparcmean_from_table \ "
+  echo "    -statsfilepath AsegMeans.txt \ "
+  echo "    -segs Right-Caudate"
+  echo ""
+  echo ""
+  echo ""
+
+  
+  exit 0
+############--------------##################

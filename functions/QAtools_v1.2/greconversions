@@ -1,0 +1,34 @@
+#!/bin/csh -ef
+# original by Vasanth Pappu
+# modified by Jenni Pacheco on 09/28/06
+
+if ($#argv != 1) goto usage_exit;
+
+set s = $1
+
+##set log file to be the detailed log
+set dlog = $SUBJECTS_DIR/$s/scripts/recon_checker.${s}.details.log
+
+##Begin entry into log
+echo "-------------------------------------------------------------" | tee -a $dlog
+    echo "Checking ALL Versions Used:" | tee -a $dlog
+    date | tee -a $dlog
+
+if (-e $SUBJECTS_DIR/${s}/scripts/recon-all.log) then
+    egrep "/recon-all" $SUBJECTS_DIR/${s}/scripts/recon-all.log | xargs -i csh -c 'echo "`dirname {}`/recon-all"' | uniq | xargs -i csh -c 'echo {},;' | tee -a $dlog
+else
+    echo "$SUBJECTS_DIR/${s}/scripts/recon-all.log doesn't exist ..."| tee -a $dlog
+endif 
+
+
+exit 0;
+
+
+
+
+usage_exit:
+echo "greconversion <subjid>"
+exit 1;
+
+
+

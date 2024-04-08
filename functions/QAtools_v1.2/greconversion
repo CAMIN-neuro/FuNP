@@ -1,0 +1,44 @@
+#!/bin/csh -ef
+# original by Vasanth Pappu
+# modified by Jenni Pacheco 09/28/06
+
+if ($#argv != 1) goto usage_exit;
+
+set s = $1
+
+##set log files to be the same as the data checker
+set slog = $SUBJECTS_DIR/$s/scripts/recon_checker.${s}.summary.log
+set dlog = $SUBJECTS_DIR/$s/scripts/recon_checker.${s}.details.log
+
+##Begin entry into both logs
+echo "-------------------------------------------------------------" | tee -a $slog | tee -a $dlog
+    echo "Checking Last Version Used:" | tee -a $slog | tee -a $dlog
+    date | tee -a $slog | tee -a $dlog
+
+    if ( ! -e $slog || ! -e $dlog ) then
+	echo "ERROR: Log file directory not found."| tee -a $slog | tee -a $dlog
+	echo "Check that SUBJECTS_DIR is properly set"| tee -a $slog | tee -a $dlog
+	exit 1
+    endif
+##check last version used
+if (-e $SUBJECTS_DIR/${s}/scripts/recon-all.log) then
+
+    egrep "/recon-all" $SUBJECTS_DIR/${s}/scripts/recon-all.log | tail -n1 | tee -a $slog | tee -a $dlog
+    
+
+else
+    echo "$SUBJECTS_DIR/${s}/scripts/recon-all.log doesn't exist ..." | tee -a $slog | tee -a $dlog
+endif 
+
+
+exit 0;
+
+
+
+
+usage_exit:
+echo "greconversion <subjid>"
+exit 1;
+
+
+

@@ -1,0 +1,212 @@
+#!/bin/csh -ef
+# original by Vasanth Pappu
+# last modified by Louis Vinke on 10/31/11
+
+set s = ();
+set slog = ();
+set sumlog = ();
+goto parse_args;
+parse_args_return:
+
+goto check_params;
+check_params_return:
+
+# ---
+# echo "" >> $slog
+# echo "     SUBJECTS_DIR is $SUBJECTS_DIR test " >> $slog
+# echo "     Processing subject $s" >> $slog
+# echo "" >> $slog
+#sleep 2;
+
+pushd $SUBJECTS_DIR/$s > /dev/null
+
+set filesplus = "$files_in_order"
+
+# list the files/check to see all files exist
+# check to see if all files exist
+
+echo -n "     Checking if all files exist..."
+
+set commonOrder = ($filesplus)
+set failed = 0
+
+foreach f ($commonOrder)
+    if (! -e $f) then
+	if (! $failed) then
+	echo "FAILED"
+	echo "     (read ../$s/scripts/recon_checker.log)"
+	endif
+	echo "     ERROR: Subject $s missing output file ../$f" | tee -a $sumlog | tee -a $slog
+	set failed = 1
+    endif
+end
+
+if ($failed) then
+	echo "" >> $slog
+	echo "     Subject $s recon may have exited with errors or a recon-all" >> $slog
+	echo " 	   step was skipped.  Alternatively, Subject $s may have been" >> $slog
+	echo "     processed with a different version of FreeSurfer other than" >> $slog		
+	echo "     the version used to create the current file order file (based" >> $slog
+	echo "	   on v5.1 by default if not specified by user).  Consider generating" >> $slog
+ 	echo "     an output file order file for your specific dataset using the" >> $slog
+	echo "     '-genoutputorderfile' flag.  See the '-help' flag for details." >> $slog
+	echo "" | tee -a $sumlog | tee -a $slog
+	goto theend;
+endif
+
+echo "PASSED"
+echo ""
+
+#echo $filesplus
+#if ($Details) echo "${filesplus}"
+
+set realOrder = `ls -1rt --full-time $filesplus | awk '{print $9}'`
+
+echo -n "     Checking actual file order..."
+
+set ok = 1;
+set x = 1;
+set nextx = 2;
+@ realOrder_plus = $#realOrder + 1;
+
+while ($x < $realOrder_plus)
+
+    if ($realOrder[$x] == $commonOrder[$x]) then
+	echo "     $realOrder[$x] last modified `stat -c %y $realOrder[$x]`" >> $slog
+	@ x = $x + 1; @ nextx = $nextx + 1;
+	continue;
+    else
+	echo "FAILED"
+	echo "     (read ../$s/scripts/recon_checker.log)"
+	echo "" >> $slog	    	
+	echo "     ERROR: Actual file order disagrees with common file order for subject $s" | tee -a $sumlog | tee -a $slog
+	    	echo "" >> $slog
+		echo "     At least one step in the recon-all stream has been skipped or" >> $slog
+		echo "     rerun out of order.  Run the following command to rerun any steps" >> $slog
+		echo "     which were skipped or for which the output has been modified." >> $slog
+		echo "" >> $slog
+		echo "          recon-all -make all -subjid $s" >> $slog
+		echo "" >> $slog
+		echo "     Alternatively, examine the ReconAllTable for your version of FreeSurfer" >> $slog
+		echo "     to identify the recon-all step where the discrepancy is occuring and rerun" >> $slog
+		echo "     every recon-all step from that point forward.  This subject may have been" >> $slog
+		echo "     processed with a different version of FreeSurfer other than the version" >> $slog
+		echo "     used to create the common file order file (based on v5.1 by default if not" >> $slog
+		echo "     specified by the user).  Consider generating an output file order file for" >> $slog
+		echo "     your specific dataset using the 'genoutputorderfile' flag." >> $slog
+		echo "     See the '-help' flag for details." >> $slog
+		echo "" | tee -a $sumlog | tee -a $slog
+	
+	@ a = $x - 2; 
+	@ z = $x + 4;
+
+	echo "     actual order  ====>  common order:" >> $slog
+	echo "     ..........  ====>  ........." >> $slog
+	
+	foreach az (`seq $a $z`)
+	    echo "     $realOrder[$az]  ====>  $commonOrder[$az]" >> $slog
+	end
+	    echo "     ..........  ====>  ........." >> $slog
+	set ok = 0;
+	goto theend;
+    endif
+
+    @ x = $x + 1; @ nextx = $nextx + 1;
+
+end
+
+echo "PASSED"
+echo "" | tee -a $slog
+echo "     Actual file order agrees with common file order" >> $slog
+
+theend:
+
+popd > /dev/null
+
+exit 0;
+
+
+############--------------##################
+parse_args:
+set cmdline = ($argv);
+while( $#argv != 0 )
+
+  set flag = $argv[1]; shift;
+
+  switch($flag)
+
+    case "-s":
+    case "-subjid":
+        if ( $#argv == 0) goto arg1err;
+        set proceed = 1;
+        while ( $#argv != 0 && $proceed )
+            set s = ($s $argv[1]); shift;
+            if ( $#argv != 0 ) then
+                set proceed = `echo "$argv[1]" | gawk '{ if (substr($1, 1, 1) == "-") {print "0"} else {print "1"} }'`;
+            endif
+        end
+        breaksw
+
+    case "-sf":
+      if ( $#argv == 0) goto arg1err;
+      set s = `cat $argv[1]`; shift;
+      breaksw
+
+    case "-outputfileorderfile"
+	set output_file_order_file = `cat $argv[1]`; shift;
+	set files_in_order = (`echo $output_file_order_file`)
+      breaksw
+
+    case "-slog":
+      set slog = $argv[1]; shift;
+      breaksw
+
+    case "-sumlog":
+      set sumlog = $argv[1]; shift;
+      breaksw
+    
+
+    # ----
+
+    default:
+        echo ERROR: Flag $flag unlegal.
+        echo $cmdline
+        exit 1
+    breaksw
+    endsw
+
+end
+goto parse_args_return;
+
+############--------------##################
+############--------------##################
+check_params:
+    if($#s == 0) then
+        echo "     ERROR: must specify a subjid"
+        exit 1;
+    endif
+goto check_params_return;
+##############--------------##################
+##############--------------##################
+arg1err:
+  echo "     ERROR: flag $flag requires one argument"
+  exit 1
+##############--------------##################
+##############--------------##################
+usage_err:
+  echo "     USAGE: flags:"
+  echo ""
+  echo "     -s"
+  echo "	subject ID"
+  echo ""
+  echo "     -subjid"
+  echo "	subject ID"
+  echo ""
+  echo "     -sf"
+  echo "	a file containing a list of subjects"
+  echo ""
+  echo "     -outputfileorderfile"
+  echo "	 File containing the common order of the output files"
+  exit 1
+##############--------------##################
+##############--------------##################
