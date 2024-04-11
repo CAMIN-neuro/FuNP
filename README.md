@@ -6,7 +6,7 @@ Fusion of Neuroimaging Preprocessing Pipeline: A multimodal MRI data preprocessi
 https://www.frontiersin.org/articles/10.3389/fninf.2019.00005/full
 
 > [!IMPORTANT]
-> ## Required software
+> ### Required software :eyes:
 > 
 > AFNI: https://afni.nimh.nih.gov/download \
 > FSL: https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FslInstallation \
@@ -18,7 +18,7 @@ https://www.frontiersin.org/articles/10.3389/fninf.2019.00005/full
 > R: https://cran.r-project.org/bin/linux/ubuntu/fullREADME.html \
 > python: https://www.python.org/downloads
 >
-> ## The current version of FuNP was tested under the following versions
+> ### The current version of FuNP was tested under the following versions :gem:
 > 
 > AFNI v22.0.17 \
 > FSL v6.0 \
@@ -31,7 +31,7 @@ https://www.frontiersin.org/articles/10.3389/fninf.2019.00005/full
 > python v3.8.5
 
 > [!CAUTION]
-> **FIX has several requirements**
+> ### FIX has several requirements :triangular_flag_on_post:
 > 
 > `FSL`
 > 
