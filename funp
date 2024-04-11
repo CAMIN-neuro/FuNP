@@ -134,7 +134,6 @@ dwi_main=""
 dwi_bval=""
 dwi_bvec=""
 pe_dir=""
-strucDir=""
 dwi_rev=None
 
 func=None
@@ -151,6 +150,7 @@ t2=None
 qc=None
 type=""
 
+strucDir=""
 wbDir=""
 out=""
 threads=5
@@ -215,12 +215,6 @@ do
         shift;shift
     ;;
 
-    -strucDir)
-        strucDir=TRUE
-        strucDir=$2
-        shift;shift
-    ;;
-
     -dwi_rev)
         dwi_rev=TRUE
         dwi_rev=$2
@@ -280,6 +274,12 @@ do
     -type)
         type=TRUE
         type=$2
+        shift;shift
+    ;;
+
+    -strucDir)
+        strucDir=TRUE
+        strucDir=$2
         shift;shift
     ;;
 
@@ -439,12 +439,3 @@ if [ $qc == TRUE ]; then
     
     $CMD | tee -a ${log_file}.txt
 fi
-
-
-
-
-
-
-
-
-
