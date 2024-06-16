@@ -6,7 +6,9 @@ export PATH
 source "${FuNP}/functions/utilities.sh"
 
 version() {
-    echo -e "\nFuNP March 2024 (v0.1)"
+    echo -e "\nFuNP June 2024 (v0.2)"
+    echo -e "\n - March 2024 (v0.1): Initial version released"
+    echo -e "\n - June 2024 (v0.2) : GAN-MAT implemented"
 }
 
 help() {
@@ -87,7 +89,7 @@ help() {
     \t-t2         : T2-weighted image (NIFTI) with full directory
     \t-strucDir   : Directory of structural processing
     \t-out        : Output directory (~/mpc folder will be created under the entered output directory)
-    \t              If '-t2' is not defined when '-mpc' option is used, the T2w will be synthesized using GAN-MAT
+    \t              If '-t2' is not defined when '-mpc' option is used, the T2w will be synthesized using GAN-MAT (The input T1w should be bias field corrected and skull removed)
     \t              https://github.com/CAMIN-neuro/GAN-MAT
 
     \t(Optional)
@@ -445,29 +447,32 @@ if [ $mpc == TRUE ]; then
 ################
  MPC processing
 ################"
-    outDir=${out}/mpc
+    if [[ $t2 != None ]]; then
+        outDir=${out}/mpc
+        
+        # Calculate MPC using entered T1w & T2w
+        CMD="${FuNP}/functions/mpc.sh $t1 $t2 $strucDir $outDir $threads"
+    else
+        outDir=${out}/mpc_ganmat
+        
+        # Calculate MPC using entered T1w and GAN-MAT-derived T2w
+        CMD="${FuNP}/functions/mpc_ganmat.sh $t1 $strucDir $outDir $threads"
+    fi 
+
     if [ -d ${outDir} ]; then 
         if [ $force == TRUE ]; then
             Warning "output directory will be overwritten!!!"
             rm -rf ${outDir}
             mkdir -m 777 -p ${outDir}
         else
-            Error "mpc directory already exists!!! Use -force option to overwrite outputs"
+            Error "mpc_ganmat directory already exists!!! Use -force option to overwrite outputs"
             exit 1;
         fi
     else
         mkdir -m 777 -p ${outDir}
     fi
-
     log_file="${outDir}/log_mpc_$(date +'%Y-%m-%d_%H:%M:%S')"
-    if [[ $t2 != None ]]; then
-        # Calculate MPC using entered T1w & T2w
-        CMD="${FuNP}/functions/mpc.sh $t1 $t2 $strucDir $outDir"
-    else
-        # Calculate MPC using entered T1w and GAN-MAT-derived T2w
-        CMD="${FuNP}/functions/mpc_ganmat.sh $t1 $outDir"
-    fi 
-
+    
     $CMD | tee -a ${log_file}.txt
 fi
 
