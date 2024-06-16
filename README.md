@@ -31,3 +31,7 @@ https://www.frontiersin.org/articles/10.3389/fninf.2019.00005/full
 >   * 'party' version 1.0.25 
 >   * 'e1071' version 1.6.7 
 >   * 'randomForest' version 4.6.12
+> 
+> :triangular_flag_on_post: **GAN-MAT requirements**
+> Download the trained model (model.pth) at https://www.dropbox.com/home/GAN-MAT?di=left_nav_browse
+> Locate model.pth into the *~/FuNP/functions/GANMAT* folder
