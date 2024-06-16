@@ -17,9 +17,21 @@ https://www.frontiersin.org/articles/10.3389/fninf.2019.00005/full
 > **Workbench** v1.5.0 (https://www.humanconnectome.org/software/get-connectome-workbench) \
 > **R** v3.6.3 (https://cran.r-project.org/bin/linux/ubuntu/fullREADME.html) \
 > **python** v3.8.5 (https://www.python.org/downloads) \
-> **FIX** v1.06.15 (https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FIX)
+> **FIX** v1.06.15 (https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FIX) 
 > 
-> :triangular_flag_on_post: **FIX has several requirements** 
+> **Python3 libralies**
+> * numpy v1.24.3
+> * scipy v1.13.0
+> * nibabel v5.2.1
+> * pygeodesic v0.1.9
+> * nilearn v0.10.4
+> * matplotlib v3.8.4
+> * brainspace v0.1.10
+> * vtk v9.3.0
+> * pyvirtualdisplay v3.0
+> * torch v2.3.1+cu121
+> 
+> :triangular_flag_on_post: **FIX requirements** 
 > * FSL
 > * MATLAB with official toolboxes:
 >   * Statistics
