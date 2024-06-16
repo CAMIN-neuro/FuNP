@@ -23,6 +23,8 @@ ${FuNP}/funp -gd -wbDir ${outDir}/struc/wb_adjust -out ${outDir} -threads 10
 
 # Microstructural processing
 ${FuNP}/funp -mpc -t1 ${dataDir}/T1w_MPR1/100206_3T_T1w_MPR1.nii.gz -t2 ${dataDir}/T2w_SPC1/100206_3T_T2w_SPC1.nii.gz -strucDir /data/directory/struc -out /out/directory -threads 10
+${FuNP}/funp -mpc -t1 ${dataDir}/T1w_restore_brain.nii.gz -strucDir /data/directory/struc -out /out/directory -threads 10
 
 # Quality control
 ${FuNP}/funp -qc -type func -dataDir ${outDir}/func -out ${outDir} -force
+
