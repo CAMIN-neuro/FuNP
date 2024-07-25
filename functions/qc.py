@@ -67,9 +67,9 @@ def load_surface(lh, rh, with_normals=True, join=False):
 
 if modType == 'struc':
     ### Check volume data
-    T1w = dataDir + '/wb_adjust/MNINonLinear/T1w_restore.nii.gz'
-    T1w_brain = dataDir + '/wb_adjust/MNINonLinear/T1w_restore_brain.nii.gz'
-    T1w_mask = dataDir + '/wb_adjust/MNINonLinear/brainmask_fs.nii.gz'
+    T1w = dataDir + '/wb_adjust/T1w/T1w_restore.nii.gz'
+    T1w_brain = dataDir + '/wb_adjust/T1w/T1w_restore_brain.nii.gz'
+    T1w_mask = dataDir + '/wb_adjust/T1w/brainmask_fs_1mm.nii.gz'
     display = plotting.plot_img(T1w, colorbar=True, display_mode='ortho', draw_cross=False,
                                 title='T1w_restore', cmap=plt.cm.gray, black_bg=True,
                                 output_file=qcDir + '/T1w_restore')
