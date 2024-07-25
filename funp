@@ -23,6 +23,7 @@ help() {
 
     \t(Optional)
     \t-proc_fs    : FreeSurfer recon-all directory if it has already been run
+                    It should not be contained in the output directory (should be located in somewhere else)
     \t-threads    : Number of threads (default: 5)
     \t-force      : The output directory will be overwritten (existing directory will be removed and re-processed)
 
