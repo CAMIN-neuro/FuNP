@@ -26,5 +26,5 @@ ${FuNP}/funp -mpc -t1 ${dataDir}/T1w_MPR1/100206_3T_T1w_MPR1.nii.gz -t2 ${dataDi
 ${FuNP}/funp -mpc -t1 ${dataDir}/T1w_restore_brain.nii.gz -strucDir /data/directory/struc -out /out/directory -threads 10
 
 # Quality control
-${FuNP}/funp -qc -type func -dataDir ${outDir}/func -out ${outDir} -force
+${FuNP}/funp -qc -type func -dataDir ${outDir} -out ${outDir} -force
 
