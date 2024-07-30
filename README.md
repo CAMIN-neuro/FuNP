@@ -1,6 +1,6 @@
 # FuNP
 Fusion of Neuroimaging Preprocessing Pipeline: A multimodal MRI data preprocessing pipeline
-<p align="center"><img width="80%" src="https://camin-neuro/FuNP/FuNP_icon.jpg"/>
+<p align="center"><img width="80%" src="[https://camin-neuro/FuNP/FuNP_icon.jpg](https://github.com/CAMIN-neuro/FuNP/blob/main/FuNP_icon.jpg)"/>
 
 ## Paper
 > *B.-y. Park, K. Byeon, and H. Park.* FuNP (Fusion of Neuroimaging Preprocessing) pipelines: A fully automated preprocessing software for functional magnetic resonance imaging. *Frontiers in Neuroinformatics* 13:5 (2019). \
