@@ -40,7 +40,8 @@ https://www.frontiersin.org/articles/10.3389/fninf.2019.00005/full
 > * R (version >=3.3.0), with the following packages:
 >   * 'kernlab' version 0.9.24 
 >   * 'ROCR' version 1.0.7 
->   * 'class' version 7.3.14 
+>   * 'class' version 7.3.14
+>   * 'coin' version 1.1-0
 >   * 'party' version 1.0.25 
 >   * 'e1071' version 1.6.7 
 >   * 'randomForest' version 4.6.12
