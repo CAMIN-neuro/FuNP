@@ -187,11 +187,14 @@ fi
 fslmaths ${tmpDir}/T1w_all_fast_firstseg.nii.gz -thr 16 -uthr 16 -binv -mul ${tmpDir}/T1w_all_fast_firstseg.nii.gz ${tmpDir}/T1w_all_fast_firstseg.nii.gz
 
 # Registration to dti space
-flirt -in ${tmpDir}/T1w_restore_brain -ref ${tmpDir}/dwi_b0_brain -out ${tmpDir}/T1w2b0.nii.gz -omat ${tmpDir}/T1w2b0.mat -dof 12 -cost mutualinfo
+antsRegistrationSyN.sh -d 3  -m ${tmpDir}/T1w_restore_brain.nii.gz -f ${tmpDir}/dwi_b0_brain.nii.gz -o ${tmpDir}/T1w2b0 -t r
+rm -rf ${tmpDir}/T1w2b0*Inverse*
+mv ${tmpDir}/T1w2b0Warped.nii.gz ${tmpDir}/T1w2b0.nii.gz
+mv ${tmpDir}/T1w2b00GenericAffine.mat ${tmpDir}/T1w2b0.mat
 mrconvert ${tmpDir}/T1w2b0.nii.gz ${tmpDir}/T1w2b0.mgz
 T1dwi=${tmpDir}/T1w2b0.mgz
 
-flirt -applyxfm -init ${tmpDir}/T1w2b0.mat -in ${tmpDir}/T1w_all_fast_firstseg -ref ${tmpDir}/dwi_b0_brain -out ${tmpDir}/T1w_all_fast_seg2b0 -interp nearestneighbour
+antsApplyTransforms --default-value 0 -e 3 --input ${tmpDir}/T1w_all_fast_firstseg.nii.gz -r ${tmpDir}/dwi_b0_brain.nii.gz -o ${tmpDir}/T1w_all_fast_seg2b0.nii.gz -t ${tmpDir}/T1w2b0.mat --interpolation NearestNeighbor
 dwi_subc=${tmpDir}/T1w_all_fast_seg2b0.nii.gz
 
 
@@ -199,7 +202,7 @@ echo -e "\n## Generate a five-tissue-type image for anatomically constrained tra
 5ttgen fsl ${tmpDir}/T1.nii.gz ${tmpDir}/5TT.mif -nocrop
 mrconvert ${tmpDir}/5TT.mif ${tmpDir}/5TT.nii.gz
 
-flirt -applyxfm -init ${tmpDir}/T1w2b0.mat -in ${tmpDir}/5TT -ref ${tmpDir}/dwi_b0_brain -out ${tmpDir}/5TT2b0
+antsApplyTransforms --default-value 0 -e 3 --input ${tmpDir}/5TT.nii.gz -r ${tmpDir}/dwi_b0_brain.nii.gz -o ${tmpDir}/5TT2b0.nii.gz -t ${tmpDir}/T1w2b0.mat
 mrconvert ${tmpDir}/5TT2b0.nii.gz ${tmpDir}/5TT2b0.mif
 
 
@@ -230,14 +233,14 @@ fi
 export SUBJECTS_DIR="${strucDir}"
 
 # Register T1 in fs to T1 in dwi
-T1fs="${fsDir}/mri/T1.mgz" 
+T1fs="${fsDir}/mri/brain.mgz" 
 T1dwi="${tmpDir}/T1w2b0.mgz"
 mat_fsnative_affine="${dwi_parcDir}/from-fsnative_to_dwi_t1w_"
 T1_fsnative_affine=${mat_fsnative_affine}0GenericAffine.mat
 antsRegistrationSyN.sh -d 3 -f "$T1dwi" -m "$T1fs" -o "$mat_fsnative_affine" -t r -p d
 
 # Create parcellation volumes
-cp -r -L ${FREESURFER}/subjects/fsaverage5 ${strucDir}
+cp -r -L ${FREESURFER_HOME}/subjects/fsaverage5 ${strucDir}
 
 cd ${FuNP}/parcellations
 atlas_parc=($(ls lh.*annot))
@@ -341,7 +344,7 @@ rm -rf ${tmpDir}/T1w_all_fast_origsegs.nii.gz
 rm -rf ${tmpDir}/T1w2b0.*
 rm -rf ${tmpDir}/T1w_restore*
 # tractography
-rm -rf ${tmpDir}/iFOD2*
+rm -rf ${tmpDir}/iFOD2*.tck
 rm -rf ${tmpDir}/SIFT2*
 rm -rf ${tmpDir}/connectomes_tmp
 
@@ -352,4 +355,3 @@ rm -rf ${tmpDir}
 
 
 echo -e "\n### dwi processing finished ###"
-
