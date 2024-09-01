@@ -6,11 +6,12 @@ set -e
 
 Usage() {
     cat <<EOF
-Usage: gd.sh <wbDir> <outDir> <threads>
+Usage: gd.sh <wbDir> <outDir> <threads> <procDir>
   
   <wbDir>       wb_adjust folder (typically, ~/struc/wb_adjust)
   <outDir>      Output directory
   <threads>     Number of threads (default: 5)
+  <procDir>     Processing directory (default: /tmp)
 
 EOF
     exit 1
@@ -20,6 +21,7 @@ EOF
 wbDir="$1"
 outDir="$2"
 threads="$3"
+procDir="$4"
 
 ### Check the inputs ###
 input=($wbDir $outDir)
@@ -35,7 +37,7 @@ export OMP_NUM_THREADS=${threads}
 
 ### Prepare the processing directory ###
 tmpName=`tr -dc A-Za-z0-9 </dev/urandom | head -c 5`
-tmpDir=/home/TempProcessing/${tmpName}
+tmpDir=${procDir}/${tmpName}
 if [ ! -d ${tmpDir} ]; then mkdir -m 777 -p ${tmpDir}; fi
 
 

@@ -6,11 +6,12 @@ set -e
 
 Usage() {
     cat <<EOF
-Usage: struc.sh <t1> <proc_fs> <outDir>
+Usage: struc.sh <t1> <proc_fs> <outDir> <procDir>
   
   <t1>          T1-weighted image (NIFTI) with full directory
   <proc_fs>     FreeSurfer recon-all directory if it has already been run
   <outDir>      Output directory
+  <procDir>     Processing directory (default: /tmp)
 
 EOF
     exit 1
@@ -21,6 +22,7 @@ t1="$1"
 outDir="$2"
 proc_fs="$3"
 nthreads="$4"
+procDir="$5"
 
 ### Check the inputs ###
 input=($t1 $outDir)
@@ -36,9 +38,8 @@ export OMP_NUM_THREADS=$nthreads
 
 ### Prepare the processing directory ###
 tmpName=`tr -dc A-Za-z0-9 </dev/urandom | head -c 5`
-tmpDir=/home/TempProcessing/${tmpName}
+tmpDir=${procDir}/${tmpName}
 if [ ! -d ${tmpDir} ]; then mkdir -m 777 -p ${tmpDir}; fi
-
 
 ### FreeSurfer recon-all ###
 if [ -d ${outDir}/fs_initial ]; then 

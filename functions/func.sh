@@ -6,7 +6,7 @@ set -e
 
 Usage() {
     cat <<EOF
-Usage: func.sh <func_main> <wbDir> <fix_train> <slice_order> <func_rev> <readout> <outDir> <threads>
+Usage: func.sh <func_main> <wbDir> <fix_train> <slice_order> <func_rev> <readout> <outDir> <threads> <procDir>
   
   <func_main>   fMRI main phase data (NIFTI) with full directory
   <wbDir>       wb_adjust folder (typically, ~/struc/wb_adjust)
@@ -18,6 +18,7 @@ Usage: func.sh <func_main> <wbDir> <fix_train> <slice_order> <func_rev> <readout
   <func_rev>    fMRI reverse phase data (NIFTI) with full directory
   <slice_order> Slice order file for slice timing correction (each slice has slicing order, default: interleaved)
   <threads>     Number of threads (default: 5)
+  <procDir>     Processing directory (default: /tmp)
 
 EOF
     exit 1
@@ -32,6 +33,7 @@ func_rev="$5"
 readout="$6"
 outDir="$7"
 threads="$8"
+procDir="$9"
 
 ### Check the inputs ###
 input=($func_main $wbDir $outDir)
@@ -46,7 +48,7 @@ fi
 
 ### Prepare the processing directory ###
 tmpName=`tr -dc A-Za-z0-9 </dev/urandom | head -c 5`
-tmpDir=/home/TempProcessing/${tmpName}
+tmpDir=${procDir}/${tmpName}
 if [ ! -d ${tmpDir} ]; then mkdir -m 777 -p ${tmpDir}; fi
 
 

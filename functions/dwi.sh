@@ -6,7 +6,7 @@ set -e
 
 Usage() {
     cat <<EOF
-Usage: dwi.sh <dwi_main> <dwi_bval> <dwi_bvec> <pe_dir> <strucDir> <readout> <dwi_rev> <outDir> <threads>
+Usage: dwi.sh <dwi_main> <dwi_bval> <dwi_bvec> <pe_dir> <strucDir> <readout> <dwi_rev> <outDir> <threads> <procDir>
   
   <dwi_main>    DWI main phase data (NIFTI) with full directory
   <dwi_bval>    DWI b-value data with full directory
@@ -17,6 +17,7 @@ Usage: dwi.sh <dwi_main> <dwi_bval> <dwi_bvec> <pe_dir> <strucDir> <readout> <dw
   <outDir>      Output directory
   <dwi_rev>     DWI reverse phase data (NIFTI) with full directory
   <threads>     Number of threads (default: 5)
+  <procDir>     Processing directory (default: /tmp)
 
 EOF
     exit 1
@@ -32,6 +33,7 @@ readout="$6"
 dwi_rev="$7"
 outDir="$8"
 threads="$9"
+procDir="$10"
 
 ### Check the inputs ###
 input=($dwi_main $dwi_bval $dwi_bvec $pe_dir $strucDir $readout $outDir)
@@ -50,7 +52,7 @@ fi
 
 ### Prepare the processing directory ###
 tmpName=`tr -dc A-Za-z0-9 </dev/urandom | head -c 5`
-tmpDir=/home/TempProcessing/${tmpName}
+tmpDir=${procDir}/${tmpName}
 if [ ! -d ${tmpDir} ]; then mkdir -m 777 -p ${tmpDir}; fi
 
 
@@ -355,3 +357,4 @@ rm -rf ${tmpDir}
 
 
 echo -e "\n### dwi processing finished ###"
+

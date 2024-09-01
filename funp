@@ -1,14 +1,15 @@
 #!/bin/bash
 
-export FuNP=/camin1/bypark/FuNP         # Change this to your FuNP directory
+export FuNP=/data/camin/bypark/FuNP         # Change this to your FuNP directory
 PATH=${PATH}:${FuNP}:${FuNP}/functions
 export PATH
 source "${FuNP}/functions/utilities.sh"
 
 version() {
-    echo -e "\nFuNP June 2024 (v0.2)"
-    echo -e "\n - March 2024 (v0.1): Initial version released"
-    echo -e "\n - June 2024 (v0.2) : GAN-MAT implemented"
+    echo -e "\nFuNP August 2024 (v0.3)"
+    echo -e "\n - March 2024 (v0.1) : Initial version released"
+    echo -e "\n - June 2024 (v0.2)  : GAN-MAT implemented"
+    echo -e "\n - August 2024 (v0.3): -procDir option added & dwi registration command changed (FSL -> ANTs)"
 }
 
 help() {
@@ -26,8 +27,9 @@ help() {
                     It should not be contained in the output directory (should be located in somewhere else)
     \t-threads    : Number of threads (default: 5)
     \t-force      : The output directory will be overwritten (existing directory will be removed and re-processed)
+    \t-procDir    : Processing directory (default: /tmp)
 
-    \tExample     : funp -struc -t1 /data/directory/t1w.nii.gz -out /out/directory -threads 2
+    \tExample     : funp -struc -t1 /data/directory/t1w.nii.gz -out /out/directory -threads 2 -procDir /tmp
 
     # DIFFUSION PROCESSING #
     \t-dwi        : Diffusion processing
@@ -45,8 +47,9 @@ help() {
     \t-dwi_rev    : DWI reverse phase data (NIFTI) with full directory
     \t-threads    : Number of threads (default: 5)
     \t-force      : The output directory will be overwritten (existing directory will be removed and re-processed)
+    \t-procDir    : Processing directory (default: /tmp)
 
-    \tExample     : funp -dwi -dwi_main /data/directory/dwi.nii.gz -dwi_bval /data/directory/dwi.bval -dwi_bvec /data/directory/dwi.bvec -pe_dir AP -strucDir /out/directory/struc -readout 0.0481 -out /out/directory -threads 10
+    \tExample     : funp -dwi -dwi_main /data/directory/dwi.nii.gz -dwi_bval /data/directory/dwi.bval -dwi_bvec /data/directory/dwi.bvec -pe_dir AP -strucDir /out/directory/struc -readout 0.0481 -out /out/directory -threads 10 -procDir /tmp
 
     # FUNCTIONAL PROCESSING #
     \t-func       : Functional processing
@@ -66,8 +69,9 @@ help() {
     \t-readout    : Total readout time (float number)
     \t-threads    : Number of threads (default: 5)
     \t-force      : The output directory will be overwritten (existing directory will be removed and re-processed)
+    \t-procDir    : Processing directory (default: /tmp)
 
-    \tExample     : funp -func -func_main /data/directory/func.nii.gz -wbDir /data/directory/struc/wb_adjust -fix_train Standard -func_rev /data/directory/func_rev.nii.gz -readout 0.05162 -out /out/directory -threads 10
+    \tExample     : funp -func -func_main /data/directory/func.nii.gz -wbDir /data/directory/struc/wb_adjust -fix_train Standard -func_rev /data/directory/func_rev.nii.gz -readout 0.05162 -out /out/directory -threads 10 -procDir /tmp
 
     # GEODESIC DISTANCE PROCESSING #
     \t-gd         : Geodesic distance processing
@@ -79,8 +83,9 @@ help() {
     \t(Optional)
     \t-threads    : Number of threads (default: 5)
     \t-force      : The output directory will be overwritten (existing directory will be removed and re-processed)
+    \t-procDir    : Processing directory (default: /tmp)
 
-    \tExample     : funp -gd -wbDir /data/directory/struc/wb_adjust -out /out/directory -threads 10
+    \tExample     : funp -gd -wbDir /data/directory/struc/wb_adjust -out /out/directory -threads 10 -procDir /tmp
 
     # MICROSTRUCTURAL PROCESSING #
     \t-mpc        : Microstructural profile covariance processing
@@ -96,6 +101,7 @@ help() {
     \t(Optional)
     \t-threads    : Number of threads (default: 5)
     \t-force      : The output directory will be overwritten (existing directory will be removed and re-processed)
+    \t-procDir    : Processing directory (default: /tmp) -> only required when implementing GAN-MAT
 
     \tExample     : funp -mpc -t1 /data/directory/t1w.nii.gz -t2 /data/directory/t2w.nii.gz -strucDir /data/directory/struc -out /out/directory -threads 10
 
@@ -168,6 +174,7 @@ out=""
 threads=5
 readout=None
 force=None
+procDir=None
 
 for arg in "$@"
 do
@@ -331,6 +338,12 @@ do
         shift
     ;;
 
+    -procDir)
+        procDir=TRUE
+        procDir=$2
+        shift;shift
+    ;;
+
     -*)
         Error "Unknown option exist"
         exit 1
@@ -358,8 +371,12 @@ if [ $struc == TRUE ]; then
         mkdir -m 777 -p ${outDir}
     fi
 
+    if [ $procDir == FALSE ]; then
+        procDir=/tmp
+    fi
+
     log_file="${outDir}/log_struc_$(date +'%Y-%m-%d_%H:%M:%S')"
-    CMD="${FuNP}/functions/struc.sh $t1 $outDir $proc_fs $threads"
+    CMD="${FuNP}/functions/struc.sh $t1 $outDir $proc_fs $threads $procDir"
 
     $CMD | tee -a ${log_file}.txt
 fi
@@ -384,8 +401,12 @@ if [ $dwi == TRUE ]; then
         mkdir -m 777 -p ${outDir}
     fi
 
+    if [ $procDir == FALSE ]; then
+        procDir=/tmp
+    fi
+
     log_file="${outDir}/log_dwi_$(date +'%Y-%m-%d_%H:%M:%S')"
-    CMD="${FuNP}/functions/dwi.sh $dwi_main $dwi_bval $dwi_bvec $pe_dir $strucDir $readout $dwi_rev $outDir $threads"
+    CMD="${FuNP}/functions/dwi.sh $dwi_main $dwi_bval $dwi_bvec $pe_dir $strucDir $readout $dwi_rev $outDir $threads $procDir"
 
     $CMD | tee -a ${log_file}.txt
 fi
@@ -410,8 +431,12 @@ if [ $func == TRUE ]; then
         mkdir -m 777 -p ${outDir}
     fi
 
+    if [ $procDir == FALSE ]; then
+        procDir=/tmp
+    fi
+
     log_file="${outDir}/log_func_$(date +'%Y-%m-%d_%H:%M:%S')"
-    CMD="${FuNP}/functions/func.sh $func_main $wbDir $fix_train $slice_order $func_rev $readout $outDir $threads"
+    CMD="${FuNP}/functions/func.sh $func_main $wbDir $fix_train $slice_order $func_rev $readout $outDir $threads $procDir"
 
     $CMD | tee -a ${log_file}.txt
 fi
@@ -436,8 +461,12 @@ if [ $gd == TRUE ]; then
         mkdir -m 777 -p ${outDir}
     fi
 
+    if [ $procDir == FALSE ]; then
+        procDir=/tmp
+    fi
+
     log_file="${outDir}/log_gd_$(date +'%Y-%m-%d_%H:%M:%S')"
-    CMD="${FuNP}/functions/gd.sh $wbDir $outDir $threads"
+    CMD="${FuNP}/functions/gd.sh $wbDir $outDir $threads $procDir"
 
     $CMD | tee -a ${log_file}.txt
 fi
@@ -448,6 +477,10 @@ if [ $mpc == TRUE ]; then
 ################
  MPC processing
 ################"
+    if [ $procDir == FALSE ]; then
+        procDir=/tmp
+    fi
+
     if [[ $t2 != None ]]; then
         outDir=${out}/mpc
         
@@ -457,7 +490,7 @@ if [ $mpc == TRUE ]; then
         outDir=${out}/mpc_ganmat
         
         # Calculate MPC using entered T1w and GAN-MAT-derived T2w
-        CMD="${FuNP}/functions/mpc_ganmat.sh $t1 $strucDir $outDir $threads"
+        CMD="${FuNP}/functions/mpc_ganmat.sh $t1 $strucDir $outDir $threads $procDir"
     fi 
 
     if [ -d ${outDir} ]; then 
@@ -472,6 +505,7 @@ if [ $mpc == TRUE ]; then
     else
         mkdir -m 777 -p ${outDir}
     fi
+
     log_file="${outDir}/log_mpc_$(date +'%Y-%m-%d_%H:%M:%S')"
     
     $CMD | tee -a ${log_file}.txt

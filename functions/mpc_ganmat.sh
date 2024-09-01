@@ -6,13 +6,14 @@ set -e
 
 Usage() {
     cat <<EOF
-Usage: mpc.sh <t1> <strucDir> <outDir> <threads>
+Usage: mpc.sh <t1> <strucDir> <outDir> <threads> <procDir>
   
   <t1>          T1-weighted image (NIFTI) with full directory
                 It should be bias field corrected and skull removed
   <strucDir>    Directory of structural processing (typically, ~/struc)
   <outDir>      Output directory
   <threads>     Number of threads (default: 5)
+  <procDir>     Processing directory (default: /tmp)
 
 EOF
     exit 1
@@ -23,6 +24,7 @@ t1="$1"
 strucDir="$2"
 outDir="$3"
 threads="$4"
+procDir="$5"
 
 ### Check the inputs ###
 input=($t1 $strucDir $outDir)
@@ -37,7 +39,7 @@ fi
 
 ### Prepare the processing directory ###
 tmpName=`tr -dc A-Za-z0-9 </dev/urandom | head -c 5`
-tmpDir=/home/TempProcessing/${tmpName}
+tmpDir=${procDir}/${tmpName}
 if [ ! -d ${tmpDir} ]; then mkdir -m 777 -p ${tmpDir}; fi
 
 
