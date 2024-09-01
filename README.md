@@ -1,7 +1,7 @@
 ## Version updated 
 March 2024 (v0.1) : Initial version released \
 June 2024 (v0.2)  : GAN-MAT implemented \
-August 2024 (v0.3): -procDir option added & dwi registration command changed (FSL -> ANTs)"
+August 2024 (v0.3): -procDir option added & dwi registration command changed (FSL -> ANTs)
 
 # FuNP
 Fusion of Neuroimaging Preprocessing Pipeline: A multimodal MRI data preprocessing pipeline
