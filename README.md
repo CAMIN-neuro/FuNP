@@ -1,4 +1,5 @@
 ## Version updated 
+September 2024 (v0.4): -bigventricles option added \
 August 2024 (v0.3): -procDir option added & dwi registration command changed (FSL -> ANTs) \
 June 2024 (v0.2)  : GAN-MAT implemented \
 March 2024 (v0.1) : Initial version released 
