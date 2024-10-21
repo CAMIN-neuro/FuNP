@@ -26,7 +26,7 @@ https://www.frontiersin.org/articles/10.3389/fninf.2019.00005/full
 > **python** v3.8.5 (https://www.python.org/downloads) \
 > **FIX** v1.06.15 (https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FIX) 
 > 
-> **Python3 libralies**
+> **Python3 libraries**
 > * numpy v1.24.3
 > * scipy v1.13.0
 > * nibabel v5.2.1
