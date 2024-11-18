@@ -47,7 +47,7 @@ https://www.frontiersin.org/articles/10.3389/fninf.2019.00005/full
 >   * 'kernlab' version 0.9.24 
 >   * 'ROCR' version 1.0.7 
 >   * 'class' version 7.3.14
->   * 'party' version 1.0.25 
+>   * 'party' version 1.0.25 ('coin' version 1.1.0)
 >   * 'e1071' version 1.6.7 
 >   * 'randomForest' version 4.6.12
 > 
