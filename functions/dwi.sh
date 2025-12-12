@@ -209,7 +209,7 @@ mrconvert ${tmpDir}/5TT2b0.nii.gz ${tmpDir}/5TT2b0.mif
 
 
 echo -e "\n## Generate probabilistic tracts"
-tckgen -nthreads ${threads} ${fod_wmN} ${tmpDir}/iFOD2-40M_tractography.tck -act ${tmpDir}/5TT.mif -crop_at_gmwmi -backtrack -seed_dynamic ${fod_wmN} -algorithm iFOD2 -step 0.5 -angle 22.5 -cutoff 0.06 -maxlength 400 -minlength 10 -select 40M
+tckgen -nthreads ${threads} ${fod_wmN} ${tmpDir}/iFOD2-40M_tractography.tck -act ${tmpDir}/5TT2b0.mif -crop_at_gmwmi -backtrack -seed_dynamic ${fod_wmN} -algorithm iFOD2 -step 0.5 -angle 22.5 -cutoff 0.06 -maxlength 400 -minlength 10 -select 40M
 if [[ ! -f "${tmpDir}/iFOD2-40M_tractography.tck" ]]; then 
     Error "tckgen failed, check the logs"
     exit;
