@@ -1,8 +1,9 @@
 ## Version updated 
+December 2025 (v0.5): dwi.sh updated (-act option during tckgen) \
 September 2024 (v0.4): -bigventricles option added \
 August 2024 (v0.3): -procDir option added & dwi registration command changed (FSL -> ANTs) \
 June 2024 (v0.2)  : GAN-MAT implemented \
-March 2024 (v0.1) : Initial version released 
+March 2024 (v0.1) : Initial version released
 
 # FuNP
 Fusion of Neuroimaging Preprocessing Pipeline: A multimodal MRI data preprocessing pipeline
