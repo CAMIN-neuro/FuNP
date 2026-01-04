@@ -1,5 +1,5 @@
 ## Version updated 
-December 2025 (v0.6): dwi.sh updated (replace run_first_all with mri_synthseg) \
+December 2025 (v0.6): dwi.sh updated (replace run_first_all with mri_synthseg & FreeSurfer version update to 7.3.2) \
 December 2025 (v0.5): dwi.sh updated (-act option during tckgen) \
 September 2024 (v0.4): -bigventricles option added \
 August 2024 (v0.3): -procDir option added & dwi registration command changed (FSL -> ANTs) \
