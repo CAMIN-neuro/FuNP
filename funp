@@ -11,6 +11,8 @@ version() {
     echo -e "\n - June 2024 (v0.2)  : GAN-MAT implemented"
     echo -e "\n - August 2024 (v0.3): -procDir option added & dwi registration command changed (FSL -> ANTs)"
     echo -e "\n - September 2024 (v0.4): -bigventricles option added"
+    echo -e "\n - December 2025 (v0.5): dwi.sh updated (-act option during tckgen)"
+    echo -e "\n - December 2025 (v0.6): dwi.sh updated (replace run_first_all with mri_synthseg)"
 }
 
 help() {
