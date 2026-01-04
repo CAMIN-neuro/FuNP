@@ -20,7 +20,7 @@ https://www.frontiersin.org/articles/10.3389/fninf.2019.00005/full
 > ### The current version of FuNP was tested under the following versions
 > **AFNI** v22.0.17 (https://afni.nimh.nih.gov/download) \
 > **FSL** v6.0 (https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FslInstallation) \
-> **FreeSurfer** v7.1.1 (http://freesurfer.net/fswiki/DownloadAndInstall) \
+> **FreeSurfer** v7.3.2 (http://freesurfer.net/fswiki/DownloadAndInstall) \
 > **ANTs** v2.3.5 (https://github.com/ANTsX/ANTs) \
 > **MRtrix3** v3.0.2 (https://www.mrtrix.org/download) \
 > **Workbench** v1.5.0 (https://www.humanconnectome.org/software/get-connectome-workbench) \
