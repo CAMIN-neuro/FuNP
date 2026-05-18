@@ -36,7 +36,7 @@ for i in range(0, NumVol):
 func_R = nib.load(funcDir + '/surface/func.R.func.gii').darrays
 ts_R = np.zeros([NumVol, NumVertex])
 for i in range(0, NumVol):
-    t = func_L[i].data
+    t = func_R[i].data
     ts_R[i] = t
 
 ts = np.concatenate((ts_L, ts_R), axis=1)
